@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Local, instant cleanup of dictated text plus an optional AI polish pass
@@ -49,6 +50,11 @@ enum TextCleaner {
             ("rocket emoji", "🚀"),
             ("check mark", "✅"),
             ("shrug emoji", #"¯\_(ツ)_/¯"#),
+            ("open paren", "("),
+            ("close paren", ")"),
+            ("open quote", "\u{201C}"),
+            ("close quote", "\u{201D}"),
+            ("tab key", "\t"),
         ]
         for (spoken, symbol) in symbolCommands {
             s = s.replacingOccurrences(
@@ -56,6 +62,48 @@ enum TextCleaner {
                 with: regexTemplate(symbol),
                 options: .regularExpression)
         }
+        let df = DateFormatter(); df.dateStyle = .medium
+        let tf = DateFormatter(); tf.timeStyle = .short
+        s = s.replacingOccurrences(of: "(?i)\\btoday's date\\b[,.]?",
+                                   with: regexTemplate(df.string(from: Date())),
+                                   options: .regularExpression)
+        s = s.replacingOccurrences(of: "(?i)\\bcurrent time\\b[,.]?",
+                                   with: regexTemplate(tf.string(from: Date())),
+                                   options: .regularExpression)
+        return s
+    }
+
+    /// Expands {date}, {time}, and {clipboard} placeholders (usable in
+    /// dictionary replacement values).
+    static func expandVariables(_ text: String) -> String {
+        guard text.contains("{") else { return text }
+        var s = text
+        let df = DateFormatter(); df.dateStyle = .medium
+        let tf = DateFormatter(); tf.timeStyle = .short
+        s = s.replacingOccurrences(of: "{date}", with: df.string(from: Date()))
+        s = s.replacingOccurrences(of: "{time}", with: tf.string(from: Date()))
+        if s.contains("{clipboard}") {
+            s = s.replacingOccurrences(of: "{clipboard}",
+                                       with: NSPasteboard.general.string(forType: .string) ?? "")
+        }
+        return s
+    }
+
+    /// Capitalizes standalone "i" (and i'm / i'll / i've / i'd).
+    static func capitalizeI(_ text: String) -> String {
+        text.replacingOccurrences(of: "(^|[\\s\u{201C}\\(])i(?=[\\s.,!?';:\\)]|$|'m|'ll|'ve|'d)",
+                                  with: "$1I",
+                                  options: .regularExpression)
+    }
+
+    /// Straight quotes → curly, double-hyphen → em dash.
+    static func smartPunctuation(_ text: String) -> String {
+        var s = text
+        s = s.replacingOccurrences(of: "(?<=\\w)'", with: "\u{2019}", options: .regularExpression)
+        s = s.replacingOccurrences(of: "'(?=\\w)", with: "\u{2018}", options: .regularExpression)
+        s = s.replacingOccurrences(of: "(^|\\s)\"", with: "$1\u{201C}", options: .regularExpression)
+        s = s.replacingOccurrences(of: "\"", with: "\u{201D}")
+        s = s.replacingOccurrences(of: "\\s--\\s", with: " \u{2014} ", options: .regularExpression)
         return s
     }
 
@@ -69,12 +117,13 @@ enum TextCleaner {
     static func applyReplacements(_ text: String, _ replacements: [Replacement]) -> String {
         var s = text
         let usable = replacements
-            .filter { !$0.phrase.isEmpty && !$0.replacement.isEmpty }
+            .filter { $0.enabled && !$0.phrase.isEmpty && !$0.replacement.isEmpty }
             .sorted { $0.phrase.count > $1.phrase.count }
+        let flag = AppSettings.shared.caseSensitiveReplacements ? "" : "(?i)"
         for r in usable {
             let escaped = NSRegularExpression.escapedPattern(for: r.phrase)
             s = s.replacingOccurrences(
-                of: "(?i)\\b\(escaped)\\b",
+                of: "\(flag)\\b\(escaped)\\b",
                 with: regexTemplate(r.replacement),
                 options: .regularExpression)
         }

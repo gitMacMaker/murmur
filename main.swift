@@ -59,6 +59,27 @@ struct HistoryPreview: View {
     }
 }
 
+let capOut = TextCleaner.capitalizeI("i think i'll go, since i'm ready")
+print("capI: \(capOut)")
+assert(capOut == "I think I'll go, since I'm ready", "capI failed: \(capOut)")
+
+let smartOut = TextCleaner.smartPunctuation("it's \"quoted\" -- nice")
+print("smart: \(smartOut)")
+assert(smartOut.contains("\u{2019}") && smartOut.contains("\u{201C}") && smartOut.contains("\u{2014}"), "smart failed")
+
+let varOut = TextCleaner.expandVariables("Sent on {date}")
+print("vars: \(varOut)")
+assert(!varOut.contains("{date}"), "vars failed")
+
+struct StatsPreview2: View {
+    var body: some View {
+        StatsPane(settings: AppSettings.shared)
+            .background(Palette.of(.dark).bg)
+            .frame(width: 524, height: 760)
+    }
+}
+snap(StatsPreview2(), width: 524, height: 760, path: "preview_stats2.png")
+
 struct DictionaryPreview: View {
     var body: some View {
         DictionaryPane(settings: AppSettings.shared)

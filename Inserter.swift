@@ -29,7 +29,7 @@ enum Inserter {
         vUp?.post(tap: .cghidEventTap)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            guard !saved.isEmpty else { return }
+            guard !AppSettings.shared.keepTranscriptOnClipboard, !saved.isEmpty else { return }
             pb.clearContents()
             let items = saved.map { dict -> NSPasteboardItem in
                 let item = NSPasteboardItem()

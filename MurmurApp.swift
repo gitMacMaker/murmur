@@ -113,6 +113,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         phase = .recording
         lastVoiceAt = Date()
+        if settings.maxRecordSeconds > 0 {
+            let cap = TimeInterval(settings.maxRecordSeconds)
+            DispatchQueue.main.asyncAfter(deadline: .now() + cap) { [weak self] in
+                guard let self, self.phase == .recording,
+                      let started = self.pill.state.startedAt,
+                      Date().timeIntervalSince(started) >= cap - 0.5 else { return }
+                self.hotkeys.handsFree = false
+                self.finishRecording()
+            }
+        }
         silenceTimer?.invalidate()
         silenceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.checkAutoStop()
@@ -143,6 +153,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func finishRecording() {
         guard phase == .recording else { return }
+        if let started = pill.state.startedAt {
+            settings.totalSpeakSeconds += Date().timeIntervalSince(started)
+        }
         silenceTimer?.invalidate()
         silenceTimer = nil
         phase = .processing
@@ -172,6 +185,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             usedCommands = text != before
         }
         text = TextCleaner.applyReplacements(text, settings.replacements)
+        text = TextCleaner.expandVariables(text)
+        if settings.capitalizeI { text = TextCleaner.capitalizeI(text) }
+        if settings.smartPunctuation { text = TextCleaner.smartPunctuation(text) }
+        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        if settings.discardShortWords > 0, wordCount <= settings.discardShortWords {
+            text = ""
+        }
         guard !text.isEmpty else {
             phase = .idle
             pill.hide()
@@ -197,11 +217,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func deliver(_ rawText: String, usedCommands: Bool = false,
                          ocase: OutputCase? = nil) {
-        let text = TextCleaner.applyCase(rawText, ocase ?? settings.outputCase)
-        if settings.insertTarget == .clipboardOnly {
+        var text = TextCleaner.applyCase(rawText, ocase ?? settings.outputCase)
+        if settings.noTrailingPeriod, text.hasSuffix(".") { text = String(text.dropLast()) }
+        let words = text.split(whereSeparator: \.isWhitespace).count
+        let tooLong = settings.longToClipboardWords > 0 && words > settings.longToClipboardWords
+        if settings.insertTarget == .clipboardOnly || tooLong {
             Inserter.copyOnly(text)
         } else {
-            Inserter.insert(text)
+            Inserter.insert(settings.trailingSpace ? text + " " : text)
         }
         let unlocked = settings.record(text, usedPolish: settings.polishEnabled,
                                        usedCommands: usedCommands)
@@ -221,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + hideDelay) { [weak self] in
             guard let self, self.phase == .idle else { return }
-            self.pill.hide()
+            self.pill.hide(toIdleDot: self.settings.idleIndicator)
         }
     }
 
@@ -244,12 +267,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         img?.isTemplate = true
         statusItem.button?.image = img
         statusItem.button?.contentTintColor = recording ? .systemRed : nil
-        if settings.showMenuBarCount, settings.todayWords > 0 {
-            statusItem.button?.title = " \(settings.todayWords)"
+        var title = ""
+        if settings.showMenuBarCount, settings.todayWords > 0 { title += " \(settings.todayWords)" }
+        if settings.showMenuBarStreak, settings.streak() >= 2 { title += " 🔥\(settings.streak())" }
+        if !title.isEmpty {
+            statusItem.button?.title = title
             statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
             statusItem.button?.imagePosition = .imageLeading
         } else {
             statusItem.button?.title = ""
+        }
+        if recording, settings.recordTintAccent {
+            let c = NSColor(hue: settings.accentHue, saturation: settings.accentSat,
+                            brightness: 1.0, alpha: 1)
+            statusItem.button?.contentTintColor = c
         }
         rebuildMenu() // keep the Start/Finish dictation item in sync
     }
@@ -307,6 +338,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         prefs.target = self
         menu.addItem(prefs)
+
+        let langParent = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
+        let langMenu = NSMenu()
+        for (id, name) in GeneralPane.languages {
+            let item = NSMenuItem(title: name, action: #selector(switchLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = id
+            item.state = settings.localeID == id ? .on : .off
+            langMenu.addItem(item)
+        }
+        langParent.submenu = langMenu
+        menu.addItem(langParent)
 
         let welcome = NSMenuItem(title: "Welcome & Permissions…", action: #selector(openWelcome), keyEquivalent: "")
         welcome.target = self
@@ -391,6 +434,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         SettingsWindowController.shared.show()
+    }
+
+    @objc private func switchLanguage(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        settings.localeID = id
+        rebuildMenu()
     }
 
     @objc private func openWelcome() {

@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Observable state driving the pill UI
 
 final class PillState: ObservableObject {
-    enum Phase { case listening, handsFree, processing, done, error }
+    enum Phase { case listening, handsFree, processing, done, error, idleDot }
     @Published var phase: Phase = .listening
     @Published var text: String = ""
     @Published var levels: [CGFloat] = Array(repeating: 0.05, count: 28)
@@ -12,8 +12,13 @@ final class PillState: ObservableObject {
     @Published var startedAt: Date?
 
     func pushLevel(_ level: Float) {
+        let gained = min(1.0, level * Float(AppSettings.shared.waveGain))
         levels.removeFirst()
-        levels.append(max(0.05, CGFloat(level)))
+        levels.append(max(0.05, CGFloat(gained)))
+    }
+
+    func resetLevels(count: Int) {
+        levels = Array(repeating: 0.05, count: max(8, count))
     }
 }
 
@@ -25,14 +30,24 @@ final class PillPanel {
 
     func show() {
         if panel == nil { build() }
+        if state.levels.count != AppSettings.shared.waveBarCount {
+            state.resetLevels(count: AppSettings.shared.waveBarCount)
+        }
         position()
         panel?.orderFrontRegardless()
     }
 
-    func hide() {
-        panel?.orderOut(nil)
+    func hide(toIdleDot: Bool = false) {
         state.text = ""
-        state.levels = Array(repeating: 0.05, count: 28)
+        state.resetLevels(count: AppSettings.shared.waveBarCount)
+        if toIdleDot {
+            state.phase = .idleDot
+            if panel == nil { build() }
+            position()
+            panel?.orderFrontRegardless()
+        } else {
+            panel?.orderOut(nil)
+        }
     }
 
     private func build() {
@@ -57,9 +72,10 @@ final class PillPanel {
               let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let f = screen.visibleFrame
         let s = AppSettings.shared
+        let off = CGFloat(s.pillEdgeOffset)
         let y: CGFloat = s.pillPosition == .top
-            ? f.maxY - p.frame.height - 6
-            : f.minY + 24
+            ? f.maxY - p.frame.height - max(0, off - 18)
+            : f.minY + off
         let x: CGFloat
         switch s.pillAlignment {
         case .leading: x = f.minX + 16
@@ -93,7 +109,8 @@ struct PillView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { appeared = true }
+            if settings.reduceMotion { appeared = true }
+            else { withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { appeared = true } }
         }
     }
 }
@@ -136,6 +153,17 @@ struct PillBody: View {
     }
 
     var body: some View {
+        if state.phase == .idleDot {
+            Circle()
+                .fill(accent.opacity(0.5))
+                .frame(width: 9, height: 9)
+                .padding(6)
+        } else {
+            mainPill
+        }
+    }
+
+    private var mainPill: some View {
         HStack(spacing: 14) {
             statusDot
             waveform
@@ -163,7 +191,7 @@ struct PillBody: View {
         .padding(.vertical, 15)
         .background(background)
         .rotationEffect(.degrees(pillSkin == .sketch ? -0.5 : 0))
-        .animation(.easeOut(duration: 0.18), value: state.text)
+        .animation(settings.reduceMotion ? nil : .easeOut(duration: 0.18), value: state.text)
     }
 
     @ViewBuilder
@@ -217,6 +245,11 @@ struct PillBody: View {
         }
     }
 
+    private var cleanShape: some InsettableShape {
+        let r: CGFloat = settings.pillCorner.radius ?? 100
+        return RoundedRectangle(cornerRadius: r, style: .continuous)
+    }
+
     @ViewBuilder
     private func classicBackground(top: Color, bottom: Color, opacity: Double) -> some View {
         if pillSkin == .sketch {
@@ -235,21 +268,22 @@ struct PillBody: View {
                 )
                 .shadow(color: .black.opacity(isDark ? 0.5 : 0.18), radius: 10, y: 5)
         } else {
-            Capsule()
+            cleanShape
                 .fill(
                     LinearGradient(colors: [top.opacity(opacity), bottom.opacity(opacity)],
                                    startPoint: .top, endPoint: .bottom)
                 )
                 .overlay(
-                    Capsule().strokeBorder(
+                    cleanShape.strokeBorder(
                         LinearGradient(colors: [accent.opacity(0.65),
                                                 ink.opacity(0.10),
                                                 accent.opacity(0.25)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 1.2)
+                        lineWidth: settings.pillBorderWidth)
                 )
-                .shadow(color: settings.glowEnabled ? accent.opacity(isDark ? 0.35 : 0.3) : .clear,
-                        radius: 22, y: 4)
+                .shadow(color: settings.glowEnabled
+                        ? accent.opacity((isDark ? 0.35 : 0.3) * settings.glowIntensity) : .clear,
+                        radius: 22 * settings.glowIntensity, y: 4)
                 .shadow(color: .black.opacity(isDark ? 0.5 : 0.22), radius: 14, y: 6)
         }
     }
@@ -269,6 +303,8 @@ struct PillBody: View {
             case .error:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.yellow).font(.system(size: 15))
+            case .idleDot:
+                EmptyView()
             }
         }
         .frame(width: 18, height: 18)
@@ -287,7 +323,7 @@ struct PillBody: View {
                 }
             }
             .frame(height: 36)
-            .animation(.linear(duration: 0.08), value: state.levels)
+            .animation(settings.reduceMotion ? nil : .linear(duration: 0.08), value: state.levels)
         case .dots:
             HStack(spacing: 5) {
                 ForEach(Array(state.levels.enumerated()), id: \.offset) { i, level in
@@ -299,7 +335,7 @@ struct PillBody: View {
                 }
             }
             .frame(width: 152, height: 36)
-            .animation(.linear(duration: 0.08), value: state.levels)
+            .animation(settings.reduceMotion ? nil : .linear(duration: 0.08), value: state.levels)
         case .wave:
             WaveShape(levels: state.levels)
                 .stroke(
@@ -308,7 +344,7 @@ struct PillBody: View {
                     style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
                 )
                 .frame(width: 152, height: 36)
-                .animation(.linear(duration: 0.08), value: state.levels)
+                .animation(settings.reduceMotion ? nil : .linear(duration: 0.08), value: state.levels)
         }
     }
 
@@ -335,7 +371,8 @@ struct PillBody: View {
         case .terminal: return .custom("Menlo", size: 13)
         case .blueprint: return .custom("Noteworthy", size: 15)
         case .retro: return .custom("Monaco", size: 13)
-        case .neon, .clean: return .system(size: 14, weight: .medium, design: .rounded)
+        case .neon: return .system(size: 14, weight: .medium, design: .rounded)
+        case .clean: return .system(size: 14, weight: .medium, design: settings.pillFont.design)
         }
     }
 
@@ -353,6 +390,7 @@ struct PillBody: View {
         case .processing: return "Polishing…"
         case .done: return "Inserted ✓"
         case .error: return "Something went wrong"
+        case .idleDot: return ""
         }
     }
 }
