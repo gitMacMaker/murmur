@@ -97,7 +97,17 @@ enum TextCleaner {
     /// false-start removal. Falls back to the raw text on any failure.
     static func polish(_ text: String, tone: PolishTone, custom: String = "",
                        completion: @escaping (String) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        let instruction = polishPrompt(tone: tone, custom: custom)
+        // Prefer the user's own Anthropic API key when they chose that engine;
+        // otherwise shell out to the local claude CLI.
+        if AppSettings.shared.polishBackend == .api, let key = APIKeyStore.load() {
+            APIPolish.polish(text, instruction: instruction, apiKey: key, completion: completion)
+            return
+        }
+        cliPolish(text, instruction: instruction, completion: completion)
+    }
+
+    static func polishPrompt(tone: PolishTone, custom: String) -> String {
             let toneInstruction: String
             switch tone {
             case .custom where !custom.trimmingCharacters(in: .whitespaces).isEmpty:
@@ -116,11 +126,17 @@ enum TextCleaner {
                 personality, just make it read smoothly.
                 """
             }
-            let prompt = """
+            return """
             Clean up this dictated text: fix punctuation, capitalization, and \
             paragraph breaks; remove filler words and false starts. \
             \(toneInstruction) Output ONLY the cleaned text, nothing else.
             """
+    }
+
+    private static func cliPolish(_ text: String, instruction: String,
+                                  completion: @escaping (String) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let prompt = instruction
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
             proc.arguments = ["-lc", "claude -p " + shellQuote(prompt)]

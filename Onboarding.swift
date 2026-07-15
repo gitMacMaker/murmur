@@ -39,7 +39,7 @@ final class OnboardingWindowController {
 
     func show() {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 640),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 700),
                              styleMask: [.titled, .closable],
                              backing: .buffered, defer: false)
             w.title = "Welcome to Murmur"
@@ -90,6 +90,8 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var tick = 0
     @State private var practiceText = ""
+    @State private var apiKeyDraft = ""
+    @State private var cliFound: Bool?
     let onDone: () -> Void
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -193,6 +195,10 @@ struct OnboardingView: View {
             .padding(.horizontal, 28)
             .padding(.top, 14)
 
+            aiPolishCard
+                .padding(.horizontal, 28)
+                .padding(.top, 10)
+
             Spacer()
 
             VStack(spacing: 10) {
@@ -218,7 +224,7 @@ struct OnboardingView: View {
             }
             .padding(.bottom, 24)
         }
-        .frame(width: 440, height: 640)
+        .frame(width: 440, height: 700)
         .background {
             ZStack {
                 Palette.of(scheme).bg
@@ -254,6 +260,62 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
+    }
+
+    /// Optional AI-polish setup: shows CLI status, or lets a new user drop in
+    /// their own Anthropic API key (stored in the Keychain).
+    @ViewBuilder
+    private var aiPolishCard: some View {
+        let p = Palette.of(scheme)
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("AI polish (optional)")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(p.text)
+                Text(polishStatusText)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(p.subtext)
+            }
+            Spacer(minLength: 10)
+            if settings.hasAPIKey || cliFound == true {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.green)
+            } else {
+                HStack(spacing: 5) {
+                    SecureField("API key (optional)", text: $apiKeyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(width: 140)
+                    Button("Save") {
+                        settings.saveAPIKey(apiKeyDraft)
+                        apiKeyDraft = ""
+                    }
+                    .controlSize(.small)
+                    .disabled(apiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(p.card)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(p.border, lineWidth: 1)
+        )
+        .onAppear {
+            if cliFound == nil { ClaudeCLI.detect { cliFound = $0 } }
+        }
+    }
+
+    private var polishStatusText: String {
+        if settings.hasAPIKey { return "Your API key is saved in the Keychain" }
+        switch cliFound {
+        case true: return "Claude CLI detected — polish is ready to enable in Settings"
+        case false: return "No Claude CLI found — add an Anthropic API key to enable polish"
+        default: return "Cleans up false starts via Claude — bring your own key or CLI"
+        }
     }
 
     private func statusDot(_ state: PermState) -> some View {

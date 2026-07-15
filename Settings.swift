@@ -296,6 +296,12 @@ struct Replacement: Codable, Identifiable, Equatable {
     var replacement: String
 }
 
+enum PolishBackend: String, CaseIterable, Identifiable {
+    case cli, api
+    var id: String { rawValue }
+    var label: String { self == .cli ? "Claude CLI" : "API Key" }
+}
+
 enum PolishTone: String, CaseIterable, Identifiable {
     case clean, email, casual, custom
     var id: String { rawValue }
@@ -338,6 +344,22 @@ final class AppSettings: ObservableObject {
     }
     @Published var voiceCommandsEnabled: Bool { didSet { d.set(voiceCommandsEnabled, forKey: "voiceCommands") } }
     @Published var polishTone: PolishTone { didSet { d.set(polishTone.rawValue, forKey: "polishTone") } }
+    @Published var polishBackend: PolishBackend { didSet { d.set(polishBackend.rawValue, forKey: "polishBackend") } }
+    /// Mirrors whether an Anthropic API key is stored in the Keychain
+    /// (the key itself never lives in UserDefaults or backups).
+    @Published var hasAPIKey: Bool = APIKeyStore.exists
+
+    func saveAPIKey(_ key: String) {
+        APIKeyStore.save(key.trimmingCharacters(in: .whitespacesAndNewlines))
+        hasAPIKey = APIKeyStore.exists
+        if hasAPIKey { polishBackend = .api }
+    }
+
+    func removeAPIKey() {
+        APIKeyStore.delete()
+        hasAPIKey = false
+        polishBackend = .cli
+    }
     @Published var replacements: [Replacement] {
         didSet { d.set((try? JSONEncoder().encode(replacements)) ?? Data(), forKey: "replacements") }
     }
@@ -583,6 +605,7 @@ final class AppSettings: ObservableObject {
         }
         voiceCommandsEnabled = d.object(forKey: "voiceCommands") as? Bool ?? true
         polishTone = PolishTone(rawValue: d.string(forKey: "polishTone") ?? "") ?? .clean
+        polishBackend = PolishBackend(rawValue: d.string(forKey: "polishBackend") ?? "") ?? .cli
         localeID = d.string(forKey: "localeID") ?? "en-US"
         typeInsteadOfPaste = d.bool(forKey: "typeInsert")
         dailyWords = d.dictionary(forKey: "dailyWords") as? [String: Int] ?? [:]
@@ -853,6 +876,33 @@ struct GeneralPane: View {
                                 .frame(width: 230)
                         }
                     }
+                    RowDivider()
+                    PRow(title: "Polish engine",
+                         subtitle: settings.polishBackend == .cli
+                            ? "Uses the claude CLI installed on this Mac"
+                            : "Uses your Anthropic API key from the macOS Keychain") {
+                        Picker("", selection: $settings.polishBackend) {
+                            ForEach(PolishBackend.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 170)
+                    }
+                    if settings.polishBackend == .api {
+                        RowDivider()
+                        PRow(title: "Anthropic API key",
+                             subtitle: settings.hasAPIKey
+                                ? "A key is saved in your Keychain — it never leaves this Mac"
+                                : "Get one at console.anthropic.com — stored only in your Keychain") {
+                            if settings.hasAPIKey {
+                                Button("Remove Key") { settings.removeAPIKey() }
+                                    .buttonStyle(.borderless)
+                                    .font(.system(size: 12))
+                            } else {
+                                APIKeyField(settings: settings)
+                            }
+                        }
+                    }
                 }
                 RowDivider()
                 PRow(title: "Output case",
@@ -1036,6 +1086,26 @@ struct GeneralPane: View {
             return "Murmur reserves \(settings.hotkey.name) system-wide while it's running, so pick a key you don't otherwise use."
         }
         return nil
+    }
+}
+
+/// Secure entry for the optional Anthropic API key (Keychain-backed).
+struct APIKeyField: View {
+    @ObservedObject var settings: AppSettings
+    @State private var draft = ""
+
+    var body: some View {
+        HStack(spacing: 6) {
+            SecureField("sk-ant-…", text: $draft)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+                .frame(width: 180)
+            Button("Save") {
+                settings.saveAPIKey(draft)
+                draft = ""
+            }
+            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
     }
 }
 

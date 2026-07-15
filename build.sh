@@ -38,6 +38,7 @@ SOURCES=(
     "Onboarding.swift"
     "Theme.swift"
     "Inserter.swift"
+    "APIPolish.swift"
 )
 
 echo "→ Compiling Swift sources"
