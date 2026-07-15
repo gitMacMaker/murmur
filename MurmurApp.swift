@@ -24,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var iconWatcher: AnyCancellable?
     private let pill = PillPanel()
     private let transcriber = Transcriber()
-    private let hotkeys = HotkeyManager()
+    private var hotkeys = HotkeyManager()
+    private var axPoll: Timer?
     private let settings = AppSettings.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -42,6 +43,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(showTestPill),
             name: Notification.Name("MurmurTestPill"), object: nil)
+        // Global key monitors registered without Accessibility trust never
+        // fire — and monitors registered BEFORE trust is granted stay dead.
+        // Watch for the grant and rearm the hotkey the moment it lands.
+        if !AXIsProcessTrusted() {
+            OnboardingWindowController.shared.show()
+            axPoll = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+                guard let self, AXIsProcessTrusted() else { return }
+                self.axPoll?.invalidate()
+                self.axPoll = nil
+                self.hotkeys = HotkeyManager()
+                self.wireHotkeys()
+                self.rebuildMenu()
+                NSSound(named: "Glass")?.play()
+            }
+        }
     }
 
     // MARK: Permissions
@@ -245,6 +261,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
+        if !AXIsProcessTrusted() {
+            let warn = NSMenuItem(title: "⚠️ Grant Accessibility to enable the hotkey…",
+                                  action: #selector(openWelcome), keyEquivalent: "")
+            warn.target = self
+            menu.addItem(warn)
+        }
         menu.addItem(.separator())
 
         let dictate = NSMenuItem(
