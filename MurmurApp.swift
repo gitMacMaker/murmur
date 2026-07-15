@@ -35,7 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "onboarded") {
             UserDefaults.standard.set(true, forKey: "onboarded")
             OnboardingWindowController.shared.show()
+        } else if UserDefaults.standard.bool(forKey: "welcomeAfterRelaunch") {
+            UserDefaults.standard.set(false, forKey: "welcomeAfterRelaunch")
+            OnboardingWindowController.shared.show()
         }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(showTestPill),
+            name: Notification.Name("MurmurTestPill"), object: nil)
     }
 
     // MARK: Permissions
@@ -71,7 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func play(_ event: SoundEvent) {
         guard settings.soundsEnabled else { return }
-        NSSound(named: settings.soundTheme.sound(for: event))?.play()
+        guard let sound = NSSound(named: settings.soundTheme.sound(for: event)) else { return }
+        sound.volume = Float(settings.soundVolume)
+        sound.play()
     }
 
     // MARK: Recording lifecycle
@@ -154,18 +162,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setIcon(recording: false)
             return
         }
+        // Per-app rules can override tone and case for this delivery.
+        let rule = settings.appRules.first {
+            !$0.appName.isEmpty &&
+            (pill.state.targetApp ?? "").localizedCaseInsensitiveContains($0.appName)
+        }
+        let tone = rule?.tone ?? settings.polishTone
+        let ocase = rule?.ocase ?? settings.outputCase
         if settings.polishEnabled {
-            TextCleaner.polish(text, tone: settings.polishTone,
+            TextCleaner.polish(text, tone: tone,
                                custom: settings.customPolishPrompt) { [weak self] polished in
-                self?.deliver(polished, usedCommands: usedCommands)
+                self?.deliver(polished, usedCommands: usedCommands, ocase: ocase)
             }
         } else {
-            deliver(text, usedCommands: usedCommands)
+            deliver(text, usedCommands: usedCommands, ocase: ocase)
         }
     }
 
-    private func deliver(_ rawText: String, usedCommands: Bool = false) {
-        let text = TextCleaner.applyCase(rawText, settings.outputCase)
+    private func deliver(_ rawText: String, usedCommands: Bool = false,
+                         ocase: OutputCase? = nil) {
+        let text = TextCleaner.applyCase(rawText, ocase ?? settings.outputCase)
         if settings.insertTarget == .clipboardOnly {
             Inserter.copyOnly(text)
         } else {
@@ -184,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self, self.phase == .idle else { return }
                 self.pill.state.text = "🏆 Unlocked: \(first.name)!"
+                self.play(.unlock)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + hideDelay) { [weak self] in
@@ -305,6 +322,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quit)
 
         statusItem.menu = menu
+    }
+
+    /// Appearance pane "Show real pill" button: flash the live overlay.
+    @objc private func showTestPill() {
+        guard phase == .idle else { return }
+        pill.state.phase = .listening
+        pill.state.text = "Testing, one two three…"
+        pill.state.targetApp = nil
+        pill.state.startedAt = nil
+        pill.state.levels = (0..<28).map { _ in CGFloat.random(in: 0.1...0.9) }
+        pill.show()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            guard let self, self.phase == .idle else { return }
+            self.pill.hide()
+        }
     }
 
     @objc private func toggleDictation() {

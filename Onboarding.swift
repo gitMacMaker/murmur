@@ -83,6 +83,20 @@ private func openPrivacyPane(_ anchor: String) {
     NSWorkspace.shared.open(url)
 }
 
+/// Relaunches Murmur (used when a permission grant needs a fresh process
+/// to take effect). The welcome window reopens after the relaunch.
+enum AppRelauncher {
+    static func relaunch() {
+        UserDefaults.standard.set(true, forKey: "welcomeAfterRelaunch")
+        let path = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        task.arguments = ["-c", "sleep 0.6; open \"\(path)\""]
+        try? task.run()
+        NSApp.terminate(nil)
+    }
+}
+
 // MARK: - Onboarding view
 
 struct OnboardingView: View {
@@ -156,11 +170,7 @@ struct OnboardingView: View {
                     }
                 }
                 RowDivider()
-                permissionRow(title: "Accessibility",
-                              detail: "Type the result into the app you're using",
-                              state: PermState.accessibility) {
-                    openPrivacyPane("Privacy_Accessibility")
-                }
+                accessibilityRow
             }
             .background(p.card)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -210,7 +220,7 @@ struct OnboardingView: View {
                 Button(action: onDone) {
                     Text(allGranted ? "Start Dictating" : "I'll finish this later")
                         .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(settings.accentContrastColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(
@@ -256,6 +266,40 @@ struct OnboardingView: View {
                 Button("Grant", action: action).controlSize(.small)
             case .denied:
                 Button("Open Settings…", action: action).controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+    }
+
+    /// Accessibility gets special handling: a granted toggle can point at a
+    /// stale entry from an older build, in which case the running app still
+    /// reads "not trusted". Offer the remove-and-re-add hint plus a restart.
+    @ViewBuilder
+    private var accessibilityRow: some View {
+        let p = Palette.of(scheme)
+        let granted = PermState.accessibility == .granted
+        HStack(spacing: 12) {
+            statusDot(granted ? .granted : .denied)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Accessibility")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(p.text)
+                Text(granted
+                     ? "Type the result into the app you're using"
+                     : "Toggled on but not detected? Remove Murmur from the list (−), re-add it, then Restart App.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(p.subtext)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 10)
+            if !granted {
+                VStack(spacing: 4) {
+                    Button("Open Settings…") { openPrivacyPane("Privacy_Accessibility") }
+                        .controlSize(.small)
+                    Button("Restart App") { AppRelauncher.relaunch() }
+                        .controlSize(.small)
+                }
             }
         }
         .padding(.horizontal, 14)

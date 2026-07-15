@@ -7,8 +7,10 @@ enum TextCleaner {
     /// Strips filler words and tidies whitespace/punctuation artifacts.
     static func tidy(_ text: String) -> String {
         var s = text
-        let fillers = ["um", "uh", "uhm", "erm", "er", "you know like"]
-        for f in fillers {
+        let fillers = AppSettings.shared.fillerWords
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        for f in fillers.map({ NSRegularExpression.escapedPattern(for: $0) }) {
             s = s.replacingOccurrences(
                 of: "(?i)(^|[\\s,])\(f)([\\s,.!?]|$)",
                 with: "$1$2",

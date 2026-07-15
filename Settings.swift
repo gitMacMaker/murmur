@@ -124,7 +124,7 @@ enum PillSize: String, CaseIterable, Identifiable {
     }
 }
 
-enum SoundEvent { case start, insert, cancel }
+enum SoundEvent { case start, insert, cancel, unlock }
 
 enum SoundTheme: String, CaseIterable, Identifiable {
     case soft, crisp, retro, arcade, bubbles
@@ -148,6 +148,7 @@ enum SoundTheme: String, CaseIterable, Identifiable {
         case (.bubbles, .start): return "Submarine"
         case (.bubbles, .insert): return "Purr"
         case (.bubbles, .cancel): return "Frog"
+        case (_, .unlock): return "Funk"
         }
     }
 }
@@ -226,7 +227,7 @@ enum AppSkin: String, CaseIterable, Identifiable {
     }
 }
 
-enum OutputCase: String, CaseIterable, Identifiable {
+enum OutputCase: String, CaseIterable, Identifiable, Codable {
     case asSpoken, lowercase, uppercase
     var id: String { rawValue }
     var label: String {
@@ -288,6 +289,14 @@ struct Achievement: Identifiable {
     ]
 }
 
+/// Per-app override: when dictating into a matching app, use this tone/case.
+struct AppRule: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var appName: String
+    var tone: PolishTone = .clean
+    var ocase: OutputCase = .asSpoken
+}
+
 /// A spoken phrase that gets swapped for custom text after transcription.
 /// Phrases are also fed to the recognizer as vocabulary hints.
 struct Replacement: Codable, Identifiable, Equatable {
@@ -302,7 +311,7 @@ enum PolishBackend: String, CaseIterable, Identifiable {
     var label: String { self == .cli ? "Claude CLI" : "API Key" }
 }
 
-enum PolishTone: String, CaseIterable, Identifiable {
+enum PolishTone: String, CaseIterable, Identifiable, Codable {
     case clean, email, casual, custom
     var id: String { rawValue }
     var label: String {
@@ -327,6 +336,14 @@ final class AppSettings: ObservableObject {
     @Published var accentHue: Double { didSet { d.set(accentHue, forKey: "accentHue") } }
     @Published var accentSat: Double { didSet { d.set(accentSat, forKey: "accentSat") } }
     var accentColor: Color { Color(hue: accentHue, saturation: accentSat, brightness: 1.0) }
+    /// Legible text color on top of the accent — dark ink on light accents,
+    /// white on dark ones.
+    var accentContrastColor: Color {
+        let c = NSColor(hue: accentHue, saturation: accentSat, brightness: 1.0, alpha: 1)
+        let luminance = 0.299 * c.redComponent + 0.587 * c.greenComponent + 0.114 * c.blueComponent
+        return luminance > 0.66 ? Color(white: 0.12) : .white
+    }
+
     var accentHex: String {
         let c = NSColor(hue: accentHue, saturation: accentSat, brightness: 1.0, alpha: 1)
         return String(format: "#%02X%02X%02X",
@@ -392,6 +409,12 @@ final class AppSettings: ObservableObject {
     @Published var autoPunctuation: Bool { didSet { d.set(autoPunctuation, forKey: "autoPunct") } }
     @Published var tapThreshold: Double { didSet { d.set(tapThreshold, forKey: "tapThreshold") } }
     @Published var silenceSeconds: Double { didSet { d.set(silenceSeconds, forKey: "silenceSeconds") } }
+    @Published var soundVolume: Double { didSet { d.set(soundVolume, forKey: "soundVolume") } }
+    @Published var historyLimit: Int { didSet { d.set(historyLimit, forKey: "historyLimit") } }
+    @Published var fillerWords: [String] { didSet { d.set(fillerWords, forKey: "fillerWords") } }
+    @Published var appRules: [AppRule] {
+        didSet { d.set((try? JSONEncoder().encode(appRules)) ?? Data(), forKey: "appRules") }
+    }
     @Published var soundTheme: SoundTheme { didSet { d.set(soundTheme.rawValue, forKey: "soundTheme") } }
     @Published var insertTarget: InsertTarget { didSet { d.set(insertTarget.rawValue, forKey: "insertTarget") } }
 
@@ -403,7 +426,7 @@ final class AppSettings: ObservableObject {
         // Pinned items always survive trimming.
         let pinnedItems = history.filter(\.pinned)
         let unpinned = [HistoryItem(text: text, date: Date())] + history.filter { !$0.pinned }
-        history = pinnedItems + Array(unpinned.prefix(max(10, 50 - pinnedItems.count)))
+        history = pinnedItems + Array(unpinned.prefix(max(10, historyLimit - pinnedItems.count)))
         let words = text.split(whereSeparator: \.isWhitespace).count
         totalWords += words
         totalSessions += 1
@@ -556,6 +579,15 @@ final class AppSettings: ObservableObject {
 
     var todayWords: Int { dailyWords[Self.dayKey(Date())] ?? 0 }
 
+    /// Sum of words over the 7 days ending `endingDaysAgo` days before today.
+    func wordsInWeek(endingDaysAgo: Int) -> Int {
+        let cal = Calendar.current
+        return (endingDaysAgo..<(endingDaysAgo + 7)).reduce(0) { total, offset in
+            let day = cal.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            return total + (dailyWords[Self.dayKey(day)] ?? 0)
+        }
+    }
+
     /// Words per day for the trailing week, oldest first.
     func weekActivity() -> [(label: String, count: Int, date: String)] {
         let cal = Calendar.current
@@ -640,6 +672,15 @@ final class AppSettings: ObservableObject {
         autoPunctuation = d.object(forKey: "autoPunct") as? Bool ?? true
         tapThreshold = d.object(forKey: "tapThreshold") as? Double ?? 0.35
         silenceSeconds = d.object(forKey: "silenceSeconds") as? Double ?? 3.0
+        soundVolume = d.object(forKey: "soundVolume") as? Double ?? 0.8
+        historyLimit = d.object(forKey: "historyLimit") as? Int ?? 50
+        fillerWords = d.stringArray(forKey: "fillerWords") ?? ["um", "uh", "uhm", "erm", "er", "you know like"]
+        if let data = d.data(forKey: "appRules"),
+           let rules = try? JSONDecoder().decode([AppRule].self, from: data) {
+            appRules = rules
+        } else {
+            appRules = []
+        }
         soundTheme = SoundTheme(rawValue: d.string(forKey: "soundTheme") ?? "") ?? .soft
         insertTarget = InsertTarget(rawValue: d.string(forKey: "insertTarget") ?? "") ?? .activeApp
         if let data = d.data(forKey: "replacements"),
@@ -1013,6 +1054,12 @@ struct GeneralPane: View {
                         .labelsHidden()
                         .frame(width: 170)
                     }
+                    RowDivider()
+                    PRow(title: "Volume") {
+                        Slider(value: $settings.soundVolume, in: 0.1...1.0)
+                            .frame(width: 130)
+                            .controlSize(.small)
+                    }
                 }
                 RowDivider()
                 PRow(title: "Show today's words in menu bar") {
@@ -1229,6 +1276,79 @@ struct DictionaryPane: View {
                 .foregroundStyle(p.subtext)
                 .padding(.horizontal, 2)
                 .padding(.top, -8)
+
+            SectionLabel(text: "Filler words")
+                .padding(.top, 6)
+            CardGroup {
+                PRow(title: "Words to strip",
+                     subtitle: "Comma-separated — removed when “Remove filler words” is on") {
+                    TextField("um, uh, like…", text: Binding(
+                        get: { settings.fillerWords.joined(separator: ", ") },
+                        set: { settings.fillerWords = $0.components(separatedBy: ",")
+                            .map { $0.trimmingCharacters(in: .whitespaces) } }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .frame(width: 240)
+                }
+            }
+
+            SectionLabel(text: "App rules")
+                .padding(.top, 6)
+            CardGroup {
+                if settings.appRules.isEmpty {
+                    Text("No rules yet — pick a tone and case that apply automatically when dictating into a matching app (e.g. “Mail” → Email tone).")
+                        .font(.system(size: 12))
+                        .foregroundStyle(p.subtext)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach($settings.appRules) { $rule in
+                        if rule.id != settings.appRules.first?.id { RowDivider() }
+                        HStack(spacing: 10) {
+                            TextField("App name (e.g. Mail)", text: $rule.appName)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(p.text)
+                                .frame(width: 130)
+                            Picker("", selection: $rule.tone) {
+                                ForEach(PolishTone.allCases) { Text($0.label).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 90)
+                            Picker("", selection: $rule.ocase) {
+                                ForEach(OutputCase.allCases) { Text($0.label).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 110)
+                            Spacer()
+                            Button {
+                                settings.appRules.removeAll { $0.id == rule.id }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(p.subtext.opacity(0.7))
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    }
+                }
+                RowDivider()
+                Button {
+                    settings.appRules.append(AppRule(appName: ""))
+                } label: {
+                    Label("Add App Rule", systemImage: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(settings.accentColor)
+                }
+                .buttonStyle(.borderless)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
         }
     }
 }
@@ -1451,13 +1571,19 @@ struct AppearancePane: View {
             SectionLabel(text: "Preview")
                 .padding(.top, 6)
             CardGroup {
-                HStack {
-                    Spacer()
-                    PillBody(state: previewState, accent: settings.accentColor)
-                        .scaleEffect(0.82)
-                    Spacer()
+                VStack(spacing: 10) {
+                    HStack {
+                        Spacer()
+                        PillBody(state: previewState, accent: settings.accentColor)
+                            .scaleEffect(0.82)
+                        Spacer()
+                    }
+                    Button("Show Real Pill") {
+                        NotificationCenter.default.post(name: Notification.Name("MurmurTestPill"), object: nil)
+                    }
+                    .controlSize(.small)
                 }
-                .padding(.vertical, 18)
+                .padding(.vertical, 14)
             }
         }
         .onReceive(timer) { _ in
@@ -1553,6 +1679,8 @@ struct StatsPane: View {
                 statTile("Longest streak", "\(settings.maxStreak)d")
                 statTile("Min saved", String(format: "%.0f", settings.minutesSaved))
                 statTile("Badges", "\(earnedCount)/\(Achievement.all.count)")
+                statTile("This week", "\(settings.wordsInWeek(endingDaysAgo: 0))")
+                statTile("Last week", "\(settings.wordsInWeek(endingDaysAgo: 7))")
             }
 
             SectionLabel(text: "Achievements")
@@ -1704,6 +1832,12 @@ struct HistoryPane: View {
                     }
                 }
                 HStack {
+                    Picker("Keep", selection: $settings.historyLimit) {
+                        ForEach([25, 50, 100, 200], id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    .font(.system(size: 12))
+                    .fixedSize()
                     Button("Export…") { exportHistory() }
                         .buttonStyle(.borderless)
                         .font(.system(size: 12))
