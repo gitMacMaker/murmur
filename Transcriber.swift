@@ -18,12 +18,12 @@ final class Transcriber: NSObject {
 
     var isRunning: Bool { engine.isRunning }
 
-    func start() throws {
+    func start(localeOverride: String? = nil) throws {
         latestText = ""
         finished = false
         finishCompletion = nil
 
-        let locale = Locale(identifier: AppSettings.shared.localeID)
+        let locale = Locale(identifier: localeOverride ?? AppSettings.shared.localeID)
         recognizer = SFSpeechRecognizer(locale: locale)
             ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
 

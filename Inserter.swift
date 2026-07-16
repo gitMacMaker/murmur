@@ -94,7 +94,7 @@ enum Inserter {
                 down?.post(tap: .cghidEventTap)
                 let up = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: false)
                 up?.post(tap: .cghidEventTap)
-                usleep(9000)
+                usleep(useconds_t(max(2, AppSettings.shared.typeChunkDelay) * 1000))
                 index += 16
             }
             if i < lines.count - 1 {

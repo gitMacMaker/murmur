@@ -101,6 +101,10 @@ enum TextCleaner {
         s = s.replacingOccurrences(of: "{weekday}", with: wf.string(from: Date()))
         s = s.replacingOccurrences(of: "{month}", with: mf.string(from: Date()))
         s = s.replacingOccurrences(of: "{year}", with: yf.string(from: Date()))
+        if s.contains("{app}") {
+            s = s.replacingOccurrences(of: "{app}",
+                                       with: NSWorkspace.shared.frontmostApplication?.localizedName ?? "")
+        }
         if s.contains("{clipboard}") {
             s = s.replacingOccurrences(of: "{clipboard}",
                                        with: NSPasteboard.general.string(forType: .string) ?? "")
@@ -138,14 +142,23 @@ enum TextCleaner {
     }
 
     /// Collapses accidental doubled words: "the the" → "the".
-    static func removeDoubledWords(_ text: String) -> String {
+    /// Words in the whitelist ("very very") are left alone.
+    static func removeDoubledWords(_ text: String,
+                                   whitelist: [String] = AppSettings.shared.doubledWhitelist) -> String {
         var s = text
+        let keep = Set(whitelist.map { $0.lowercased() })
+        guard let regex = try? NSRegularExpression(pattern: "\\b(\\w+)(\\s+\\1)+\\b",
+                                                   options: .caseInsensitive) else { return s }
         var previous: String
         repeat {
             previous = s
-            s = s.replacingOccurrences(of: "(?i)\\b(\\w+)(\\s+\\1)+\\b",
-                                       with: "$1",
-                                       options: .regularExpression)
+            let ns = s as NSString
+            for m in regex.matches(in: s, range: NSRange(location: 0, length: ns.length)).reversed() {
+                guard let full = Range(m.range, in: s),
+                      let word = Range(m.range(at: 1), in: s) else { continue }
+                if keep.contains(String(s[word]).lowercased()) { continue }
+                s.replaceSubrange(full, with: String(s[word]))
+            }
         } while s != previous
         return s
     }
@@ -156,13 +169,17 @@ enum TextCleaner {
         return ".!?…:;,".contains(last) ? text : text + "."
     }
 
-    /// Strips leading conversational starters: "So," "Well," "Okay," etc.
-    static func stripStarterWords(_ text: String) -> String {
+    /// Strips leading conversational starters — the list is user-editable.
+    static func stripStarterWords(_ text: String,
+                                  words: [String] = AppSettings.shared.starterWords) -> String {
+        let usable = words.map { NSRegularExpression.escapedPattern(for: $0.trimmingCharacters(in: .whitespaces)) }
+            .filter { !$0.isEmpty }
+        guard !usable.isEmpty else { return text }
         var s = text
         var previous: String
         repeat {
             previous = s
-            s = s.replacingOccurrences(of: "(?i)^(so|well|okay|ok|anyway|alright|basically|like)[,]?\\s+",
+            s = s.replacingOccurrences(of: "(?i)^(\(usable.joined(separator: "|")))[,]?\\s+",
                                        with: "",
                                        options: .regularExpression)
         } while s != previous
@@ -191,6 +208,9 @@ enum TextCleaner {
             ("period", "."),
             ("comma", ","),
             ("colon", ":"),
+            ("hyphen", "-"),
+            ("underscore", "_"),
+            ("forward slash", "/"),
         ]
         for (spoken, mark) in marks {
             s = s.replacingOccurrences(
@@ -202,9 +222,12 @@ enum TextCleaner {
     }
 
     /// Masks censored words in the chosen style: d*** / •••• / [redacted].
+    /// `insideWords` also matches the word embedded in longer words.
     static func censor(_ text: String, words: [String],
-                       style: CensorStyle = .asterisks) -> String {
+                       style: CensorStyle = .asterisks,
+                       insideWords: Bool = false) -> String {
         var s = text
+        let b = insideWords ? "" : "\\b"
         for word in words.map({ $0.trimmingCharacters(in: .whitespaces) }) where word.count > 1 {
             let first = NSRegularExpression.escapedPattern(for: String(word.prefix(1)))
             let rest = NSRegularExpression.escapedPattern(for: String(word.dropFirst()))
@@ -215,7 +238,7 @@ enum TextCleaner {
             case .redacted: replacement = "[redacted]"
             }
             s = s.replacingOccurrences(
-                of: "(?i)\\b(\(first))\(rest)\\b",
+                of: "(?i)\(b)(\(first))\(rest)\(b)",
                 with: replacement,
                 options: .regularExpression)
         }
@@ -257,8 +280,20 @@ enum TextCleaner {
         let flag = settings.caseSensitiveReplacements ? "" : "(?i)"
         let boundary = settings.matchInsideWords ? "" : "\\b"
         for r in usable {
-            let escaped = NSRegularExpression.escapedPattern(for: r.phrase)
-            let pattern = "\(flag)\(boundary)\(escaped)\(boundary)"
+            // Advanced mode: a phrase wrapped in slashes is a raw regex whose
+            // replacement may use $1-style groups.
+            let isRegex = settings.regexReplacements && r.phrase.count > 2
+                && r.phrase.hasPrefix("/") && r.phrase.hasSuffix("/")
+            let escaped = isRegex
+                ? String(r.phrase.dropFirst().dropLast())
+                : NSRegularExpression.escapedPattern(for: r.phrase)
+            let pattern = isRegex ? "\(flag)\(escaped)" : "\(flag)\(boundary)\(escaped)\(boundary)"
+            guard (try? NSRegularExpression(pattern: pattern)) != nil else { continue }
+            if isRegex {
+                s = s.replacingOccurrences(of: pattern, with: r.replacement,
+                                           options: .regularExpression)
+                continue
+            }
             if settings.preserveCaseReplacements, !settings.caseSensitiveReplacements,
                let regex = try? NSRegularExpression(pattern: pattern) {
                 // Walk matches back-to-front so ranges stay valid, matching
@@ -383,8 +418,9 @@ enum TextCleaner {
             }
 
             // Don't hang forever if the CLI stalls.
+            let timeout = TimeInterval(AppSettings.shared.polishTimeout)
             let deadline = DispatchWorkItem { if proc.isRunning { proc.terminate() } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 30, execute: deadline)
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: deadline)
 
             let data = outPipe.fileHandleForReading.readDataToEndOfFile()
             proc.waitUntilExit()

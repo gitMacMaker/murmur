@@ -149,6 +149,50 @@ assert(dec2.extra2 != nil, "backup missing extra2")
 assert(dec2.extra2?.barWidth == AppSettings.shared.barWidth, "extra2 roundtrip")
 print("backup extra2 OK")
 
+// v2.6 engine features.
+let dblWl = TextCleaner.removeDoubledWords("it was very very good good", whitelist: ["very"])
+print("dblWl: \(dblWl.debugDescription)")
+assert(dblWl == "it was very very good", "doubled whitelist: \(dblWl)")
+
+let startCustom = TextCleaner.stripStarterWords("Honestly, this works", words: ["honestly"])
+assert(startCustom == "this works", "custom starters: \(startCustom)")
+
+let spokenNew = TextCleaner.applySpokenPunctuation("snake case hyphen test underscore done")
+print("spokenNew: \(spokenNew.debugDescription)")
+assert(spokenNew.contains("-") && spokenNew.contains("_"), "spoken dash/underscore")
+
+assert(TextCleaner.censor("scandal", words: ["and"], insideWords: true).contains("a**"),
+       "censor inside words")
+assert(TextCleaner.censor("scandal", words: ["and"], insideWords: false) == "scandal",
+       "censor word-boundary")
+
+// AppRule back-compat: old JSON without the new fields still decodes.
+let oldRule = #"[{"appName":"Mail","tone":"email","ocase":"asSpoken"}]"#
+let rules = try! JSONDecoder().decode([AppRule].self, from: Data(oldRule.utf8))
+assert(rules[0].customPrompt == "" && rules[0].blocked == false && rules[0].localeID == nil,
+       "AppRule back-compat")
+print("appRule back-compat OK")
+
+// Backup Extra3 round-trip.
+let bk4 = try! AppSettings.shared.exportBackup()
+let dec4 = try! JSONDecoder().decode(AppSettings.Backup.self, from: bk4)
+assert(dec4.extra3 != nil, "backup missing extra3")
+assert(dec4.extra3?.polishTimeout == AppSettings.shared.polishTimeout, "extra3 roundtrip")
+print("backup extra3 OK")
+
+// Skin Studio: hex round-trip and custom colors in backups.
+let hexIn = "#3FA268"
+let parsed = AppSettings.parseHex(hexIn)
+assert(parsed != nil, "hex parse failed")
+assert(AppSettings.hexString(parsed!) == hexIn, "hex roundtrip: \(AppSettings.hexString(parsed!))")
+let origTextHex = AppSettings.shared.customTextHex
+AppSettings.shared.customTextHex = "#FFEEDD"
+let bk3 = try! AppSettings.shared.exportBackup()
+let dec3 = try! JSONDecoder().decode(AppSettings.Backup.self, from: bk3)
+assert(dec3.extra2?.customTextHex == "#FFEEDD", "custom color backup roundtrip")
+AppSettings.shared.customTextHex = origTextHex
+print("skin studio hex OK")
+
 // CSV round-trip: fields with commas, quotes, and newlines must survive.
 let csvPhrase = "hello, \"world\""
 let csvRepl = "line1\nline2"
@@ -214,6 +258,28 @@ struct DictionaryPreview: View {
 
 // Skin renders (flip the real defaults, snapshot, restore)
 let origSkin = AppSettings.shared.skin
+// Skin Studio proof: a user-built dark green skin, studio card visible.
+let origCustomHue = AppSettings.shared.customSkinHue
+let origCustomSat = AppSettings.shared.customSkinSat
+let origCustomDark = AppSettings.shared.customSkinDark
+AppSettings.shared.customSkinHue = 0.38
+AppSettings.shared.customSkinSat = 0.6
+AppSettings.shared.customSkinDark = true
+AppSettings.shared.skin = .custom
+struct StudioPreview: View {
+    var body: some View {
+        AppearancePane(settings: AppSettings.shared)
+            .background(Palette.of(.dark).bg)
+            .frame(width: 524, height: 1800)
+    }
+}
+snap(StudioPreview(), width: 524, height: 1800, path: "preview_studio.png")
+AppSettings.shared.customSkinDark = false
+snap(StudioPreview(), width: 524, height: 1800, path: "preview_studio_light.png", light: true)
+AppSettings.shared.customSkinHue = origCustomHue
+AppSettings.shared.customSkinSat = origCustomSat
+AppSettings.shared.customSkinDark = origCustomDark
+
 AppSettings.shared.skin = .ocean
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_ocean.png")
 AppSettings.shared.skin = .honey

@@ -98,7 +98,11 @@ struct Palette {
     )
 
     static func of(_ scheme: ColorScheme) -> Palette {
-        let skin = AppSettings.shared.skin
+        of(scheme, skin: AppSettings.shared.skin)
+    }
+
+    /// Palette for a specific skin — lets the skin grid preview each one.
+    static func of(_ scheme: ColorScheme, skin: AppSkin) -> Palette {
         if let spec = skin.spec { return spec.palette }
         switch skin {
         case .clean, .sketch: return scheme == .dark ? .dark : .light

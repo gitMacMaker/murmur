@@ -11,6 +11,8 @@ final class PillState: ObservableObject {
     @Published var targetApp: String?
     @Published var targetIcon: NSImage?
     @Published var startedAt: Date?
+    /// True when the last delivery went to the clipboard, not an insert.
+    @Published var copiedMode = false
 
     func pushLevel(_ level: Float) {
         let gained = min(1.0, level * Float(AppSettings.shared.waveGain))
@@ -191,11 +193,23 @@ struct PillBody: View {
     var body: some View {
         if state.phase == .idleDot {
             let d = settings.idleDotSize.diameter
-            Circle()
-                .fill((settings.idleDotColor == .accent ? accent : Color(white: 0.55))
-                    .opacity(settings.idleDotOpacity))
-                .frame(width: d, height: d)
-                .padding(6)
+            let dotColor = (settings.idleDotColor == .accent ? accent : Color(white: 0.55))
+            Group {
+                if settings.idleDotPulse, !settings.reduceMotion {
+                    TimelineView(.animation(minimumInterval: 1 / 20)) { context in
+                        let t = context.date.timeIntervalSinceReferenceDate
+                        let breathe = 0.72 + 0.28 * (sin(t * 1.6) + 1) / 2
+                        Circle()
+                            .fill(dotColor.opacity(settings.idleDotOpacity * breathe))
+                            .frame(width: d, height: d)
+                    }
+                } else {
+                    Circle()
+                        .fill(dotColor.opacity(settings.idleDotOpacity))
+                        .frame(width: d, height: d)
+                }
+            }
+            .padding(6)
         } else {
             mainPill
                 .contentShape(Capsule())
@@ -216,7 +230,7 @@ struct PillBody: View {
                     .resizable()
                     .frame(width: 17, height: 17)
             }
-            waveform
+            if settings.showWaveform { waveform }
             if settings.showTranscript { transcript }
             if settings.showWordCount, wordCount > 0,
                state.phase == .listening || state.phase == .handsFree {
@@ -230,7 +244,10 @@ struct PillBody: View {
             if settings.showPillTimer, let started = state.startedAt,
                state.phase == .listening || state.phase == .handsFree {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    let secs = max(0, Int(context.date.timeIntervalSince(started)))
+                    let elapsed = max(0, Int(context.date.timeIntervalSince(started)))
+                    // Count down to the auto-finish cap when one is set.
+                    let secs = (settings.countdownTimer && settings.maxRecordSeconds > 0)
+                        ? max(0, settings.maxRecordSeconds - elapsed) : elapsed
                     Text(settings.timerFormat == .mmss
                          ? String(format: "%d:%02d", secs / 60, secs % 60)
                          : "\(secs)s")
@@ -239,7 +256,7 @@ struct PillBody: View {
                 }
             }
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, CGFloat(settings.pillPadding))
         .padding(.vertical, 15)
         .background(background)
         .rotationEffect(.degrees(pillSkin == .sketch ? -0.5 : 0))
@@ -392,6 +409,7 @@ struct PillBody: View {
                         radius: 10, y: 5)
         } else {
             let customBg = settings.pillBgColor
+            let glowColor = AppSettings.parseHex(settings.glowColorHex) ?? accent
             cleanShape
                 .fill(
                     LinearGradient(colors: customBg.map { [$0.opacity(opacity), $0.opacity(opacity)] }
@@ -400,14 +418,17 @@ struct PillBody: View {
                 )
                 .overlay(
                     cleanShape.strokeBorder(
-                        LinearGradient(colors: [accent.opacity(0.65),
-                                                ink.opacity(0.10),
-                                                accent.opacity(0.25)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                        settings.borderGradient
+                            ? LinearGradient(colors: [accent.opacity(0.65),
+                                                      ink.opacity(0.10),
+                                                      accent.opacity(0.25)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing)
+                            : LinearGradient(colors: [accent.opacity(0.6), accent.opacity(0.6)],
+                                             startPoint: .top, endPoint: .bottom),
                         lineWidth: settings.pillBorderWidth)
                 )
                 .shadow(color: settings.glowEnabled
-                        ? accent.opacity((isDark ? 0.35 : 0.3) * settings.glowIntensity) : .clear,
+                        ? glowColor.opacity((isDark ? 0.35 : 0.3) * settings.glowIntensity) : .clear,
                         radius: 22 * settings.glowIntensity, y: 4)
                 .shadow(color: .black.opacity((isDark ? 0.5 : 0.22) * settings.shadowStrength),
                         radius: 14, y: 6)
@@ -418,23 +439,32 @@ struct PillBody: View {
         ZStack {
             switch state.phase {
             case .listening, .handsFree:
-                switch settings.statusDotStyle {
-                case .dot:
-                    Circle().fill(accent)
-                        .frame(width: 10, height: 10)
-                        .shadow(color: settings.glowEnabled ? accent.opacity(0.9) : .clear, radius: 6)
-                case .mic:
-                    Image(systemName: "mic.fill")
+                if !settings.statusSymbolName.trimmingCharacters(in: .whitespaces).isEmpty,
+                   NSImage(systemSymbolName: settings.statusSymbolName,
+                           accessibilityDescription: nil) != nil {
+                    Image(systemName: settings.statusSymbolName)
                         .font(.system(size: 12))
                         .foregroundStyle(accent)
-                case .none:
-                    EmptyView()
+                } else {
+                    switch settings.statusDotStyle {
+                    case .dot:
+                        Circle().fill(accent)
+                            .frame(width: 10, height: 10)
+                            .shadow(color: settings.glowEnabled ? accent.opacity(0.9) : .clear, radius: 6)
+                    case .mic:
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(accent)
+                    case .none:
+                        EmptyView()
+                    }
                 }
             case .processing:
                 ProgressView().controlSize(.small).tint(ink)
             case .done:
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green).font(.system(size: 15))
+                    .foregroundStyle(settings.doneAccent ? accent : .green)
+                    .font(.system(size: 15))
             case .error:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.yellow).font(.system(size: 15))
@@ -447,6 +477,7 @@ struct PillBody: View {
 
     @ViewBuilder
     private var waveform: some View {
+        let h = CGFloat(settings.waveHeight)
         switch settings.waveStyle {
         case .bars:
             HStack(spacing: CGFloat(settings.barSpacing)) {
@@ -455,10 +486,29 @@ struct PillBody: View {
                                      style: .continuous)
                         .fill(LinearGradient(colors: markColors(level),
                                              startPoint: .bottom, endPoint: .top))
-                        .frame(width: CGFloat(settings.barWidth), height: 6 + level * 28)
+                        .frame(width: CGFloat(settings.barWidth), height: 6 + level * (h - 8))
                 }
             }
-            .frame(height: 36)
+            .frame(height: h)
+            .animation(settings.reduceMotion ? nil : .linear(duration: 0.08), value: state.levels)
+        case .blocks:
+            // LED meter: each column is 5 segments lit from the bottom.
+            HStack(spacing: CGFloat(settings.barSpacing)) {
+                ForEach(Array(state.levels.enumerated()), id: \.offset) { _, level in
+                    let lit = Int((level * 5).rounded())
+                    VStack(spacing: 1.5) {
+                        ForEach((0..<5).reversed(), id: \.self) { seg in
+                            RoundedRectangle(cornerRadius: 1)
+                                .fill(seg < lit
+                                      ? (markColors(level).last ?? accent)
+                                      : ink.opacity(0.12))
+                                .frame(width: CGFloat(settings.barWidth) + 1,
+                                       height: (h - 12) / 5)
+                        }
+                    }
+                }
+            }
+            .frame(height: h)
             .animation(settings.reduceMotion ? nil : .linear(duration: 0.08), value: state.levels)
         case .dots:
             HStack(spacing: 5) {
@@ -496,12 +546,16 @@ struct PillBody: View {
     }
 
     private var transcript: some View {
-        Text(displayText)
+        let live = state.phase == .listening || state.phase == .handsFree
+        let shown = displayText + (settings.pillCursor && live ? "▎" : "")
+        return Text(shown)
             .font(transcriptFont)
+            .italic(settings.pillItalic)
             .foregroundStyle(ink.opacity(state.text.isEmpty ? 0.55 : 0.95))
             .lineLimit(1)
             .truncationMode(.head)
-            .frame(minWidth: 130, maxWidth: CGFloat(settings.transcriptWidth), alignment: .leading)
+            .frame(minWidth: 130, maxWidth: CGFloat(settings.transcriptWidth),
+                   alignment: settings.transcriptCentered ? .center : .leading)
     }
 
     private var transcriptFont: Font {
@@ -538,7 +592,7 @@ struct PillBody: View {
             return "Listening… release to insert"
         case .handsFree: return "Hands-free — tap to finish, Esc cancels"
         case .processing: return "Polishing…"
-        case .done: return "Inserted ✓"
+        case .done: return state.copiedMode ? "Copied — ⌘V to paste" : "Inserted ✓"
         case .error: return "Something went wrong"
         case .idleDot: return ""
         }

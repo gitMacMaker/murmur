@@ -41,6 +41,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastSessionSeconds: Double?
     /// Updates the menu-bar timer while recording (when enabled).
     private var menuTimerTicker: Timer?
+    /// Soft privacy cue every 30s while recording (when enabled).
+    private var reminderTimer: Timer?
+    /// Keeps the Mac awake while recording (when enabled).
+    private var caffeinateProc: Process?
+
+    private func startCaffeinate() {
+        guard caffeinateProc == nil else { return }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
+        p.arguments = ["-di"]
+        try? p.run()
+        caffeinateProc = p
+    }
+
+    private func stopCaffeinate() {
+        caffeinateProc?.terminate()
+        caffeinateProc = nil
+        reminderTimer?.invalidate()
+        reminderTimer = nil
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildStatusItem()
@@ -80,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: Notification.Name("com.apple.screenIsLocked"), object: nil)
         runWeeklyAutoBackupIfDue()
         checkForUpdateIfDue()
+        if settings.openSettingsAtLaunch { SettingsWindowController.shared.show() }
         // Global key monitors registered without Accessibility trust never
         // fire — and monitors registered BEFORE trust is granted stay dead.
         // Watch for the grant and rearm the hotkey the moment it lands.
@@ -141,10 +162,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Recording lifecycle
 
+    /// The app rule matching the frontmost app, if any.
+    private func ruleForFrontmostApp() -> AppRule? {
+        let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
+        return settings.appRules.first {
+            !$0.appName.isEmpty && front.localizedCaseInsensitiveContains($0.appName)
+        }
+    }
+
     private func startRecording() {
         guard phase == .idle, !paused else { return }
+        let rule = ruleForFrontmostApp()
+        if rule?.blocked == true { return } // Murmur is off in this app
         do {
-            try transcriber.start()
+            try transcriber.start(localeOverride: rule?.localeID)
         } catch {
             pill.state.phase = .error
             pill.state.text = error.localizedDescription
@@ -182,6 +213,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.hapticsEnabled {
             NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
         }
+        if settings.preventSleep { startCaffeinate() }
+        if settings.recordingReminder {
+            reminderTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+                guard let self, self.phase == .recording else { return }
+                self.play(.start)
+            }
+        }
         setIcon(recording: true)
         if settings.showMenuTimer {
             menuTimerTicker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -217,6 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         silenceTimer?.invalidate()
         silenceTimer = nil
+        stopCaffeinate()
         phase = .processing
         pill.state.phase = .processing
         transcriber.stop { [weak self] raw in self?.handleTranscript(raw) }
@@ -226,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard phase == .recording else { return }
         silenceTimer?.invalidate()
         silenceTimer = nil
+        stopCaffeinate()
         transcriber.cancel()
         phase = .idle
         pill.hide(toIdleDot: settings.idleIndicator)
@@ -264,6 +304,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.discardShortWords > 0, wordCount <= settings.discardShortWords {
             text = ""
         }
+        if settings.discardShortSeconds > 0, let secs = lastSessionSeconds,
+           secs < settings.discardShortSeconds {
+            text = ""
+        }
         guard !text.isEmpty else {
             phase = .idle
             pill.hide(toIdleDot: settings.idleIndicator)
@@ -275,12 +319,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             !$0.appName.isEmpty &&
             (pill.state.targetApp ?? "").localizedCaseInsensitiveContains($0.appName)
         }
-        let tone = rule?.tone ?? settings.polishTone
+        var tone = rule?.tone ?? settings.polishTone
         let ocase = rule?.ocase ?? settings.outputCase
-        let usePolish = rule?.polish ?? settings.polishEnabled
+        var usePolish = rule?.polish ?? settings.polishEnabled
+        // Per-app polish voice: the rule's own instruction wins — Claude
+        // writes however you told it to for this app.
+        var customPrompt = settings.customPolishPrompt
+        if let voice = rule?.customPrompt.trimmingCharacters(in: .whitespaces), !voice.isEmpty {
+            tone = .custom
+            customPrompt = voice
+        }
+        if settings.polishMinWords > 0, wordCount < settings.polishMinWords {
+            usePolish = false // too short to be worth the round-trip
+        }
         if usePolish {
             TextCleaner.polish(text, tone: tone,
-                               custom: settings.customPolishPrompt) { [weak self] polished in
+                               custom: customPrompt) { [weak self] polished in
                 self?.deliver(polished, usedCommands: usedCommands, ocase: ocase)
             }
         } else {
@@ -296,24 +350,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let tooLong = settings.longToClipboardWords > 0 && words > settings.longToClipboardWords
         let oneShot = forceClipboardOnce
         forceClipboardOnce = false
-        if settings.insertTarget == .clipboardOnly || tooLong || oneShot {
+        // Apps on the exclusion list never get auto-inserts.
+        let excluded = settings.excludedApps.contains { app in
+            !app.isEmpty && (pill.state.targetApp ?? "").localizedCaseInsensitiveContains(app)
+        }
+        let copyMode = settings.insertTarget == .clipboardOnly || tooLong || oneShot || excluded
+        if copyMode {
             Inserter.copyOnly(text)
             lastInsertedText = nil   // a clipboard copy isn't undoable
         } else {
             var out = text
+            if settings.leadingSpace { out = " " + out }
             if settings.trailingNewline { out += "\n" }
             else if settings.trailingSpace { out += " " }
+            if settings.alwaysCopy { Inserter.copyOnly(text) }
             Inserter.insert(out)
             lastInsertedText = out
         }
-        let copiedOnly = settings.insertTarget == .clipboardOnly || tooLong || oneShot
         let wordsBeforeGoal = settings.todayWords
         let unlocked = settings.record(
             text, usedPolish: settings.polishEnabled, usedCommands: usedCommands,
             app: pill.state.targetApp, seconds: lastSessionSeconds,
-            saveToHistory: !(copiedOnly && settings.excludeClipboardOnly))
+            saveToHistory: !(copyMode && settings.excludeClipboardOnly))
         lastSessionSeconds = nil
         rebuildMenu()
+        pill.state.copiedMode = copyMode
         pill.state.phase = .done
         pill.state.text = text
         play(.insert)
@@ -387,6 +448,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.image = img
         statusItem.button?.contentTintColor = recording ? .systemRed : nil
         var title = ""
+        if paused { title += " ⏸" }
         if settings.showMenuBarCount, settings.todayWords > 0 { title += " \(settings.todayWords)" }
         if settings.showMenuBarStreak, settings.streak() >= 2 { title += " 🔥\(settings.streak())" }
         if !title.isEmpty {
@@ -443,6 +505,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                action: #selector(togglePause), keyEquivalent: "")
         pause.target = self
         menu.addItem(pause)
+
+        let mute = NSMenuItem(title: settings.soundsEnabled ? "Mute Sounds" : "Unmute Sounds",
+                              action: #selector(toggleMute), keyEquivalent: "")
+        mute.target = self
+        menu.addItem(mute)
+
+        if settings.todayWords > 0 {
+            let today = NSMenuItem(
+                title: "Today: \(settings.todayWords.formatted()) words · \(settings.dailySessions[AppSettings.dayKey(Date())] ?? 0) sessions",
+                action: nil, keyEquivalent: "")
+            today.isEnabled = false
+            menu.addItem(today)
+        }
 
         if lastInsertedText != nil {
             let undo = NSMenuItem(title: "Undo Last Insert",
@@ -666,6 +741,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         paused.toggle()
         if paused, phase == .recording { cancelRecording() }
         setIcon(recording: phase == .recording)
+    }
+
+    @objc private func toggleMute() {
+        settings.soundsEnabled.toggle()
+        rebuildMenu()
+    }
+
+    /// While recording, optionally confirm before quitting (the mic is live).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard phase == .recording, settings.confirmQuitWhileRecording else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = "Still recording — quit anyway?"
+        alert.informativeText = "The current dictation will be discarded."
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Keep Recording")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 
     /// Deletes the most recently inserted text by sending one backspace per

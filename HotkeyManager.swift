@@ -36,6 +36,7 @@ final class HotkeyManager {
         let escHandler: (NSEvent) -> Void = { [weak self] event in
             guard let self, event.keyCode == self.escKeyCode,
                   !KeyCaptureState.active,
+                  AppSettings.shared.escCancels,
                   self.isRecording?() == true else { return }
             self.handsFree = false
             self.onCancel?()

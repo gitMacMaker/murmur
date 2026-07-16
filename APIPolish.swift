@@ -81,13 +81,13 @@ enum APIPolish {
                        completion: @escaping (String) -> Void) {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         request.httpMethod = "POST"
-        request.timeoutInterval = 30
+        request.timeoutInterval = TimeInterval(AppSettings.shared.polishTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
 
         let body: [String: Any] = [
-            "model": "claude-opus-4-8",
+            "model": AppSettings.shared.apiModel,
             "max_tokens": 16000,
             "system": instruction,
             "messages": [["role": "user", "content": text]],
