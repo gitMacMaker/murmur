@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import ServiceManagement
 import Speech
 
@@ -94,20 +95,29 @@ struct HistoryItem: Codable, Identifiable {
     let text: String
     let date: Date
     var pinned: Bool = false
+    /// App the transcript was inserted into, when known.
+    var app: String?
+    /// How long the dictation took, in seconds, when known.
+    var seconds: Double?
 
-    init(text: String, date: Date, pinned: Bool = false) {
+    init(text: String, date: Date, pinned: Bool = false,
+         app: String? = nil, seconds: Double? = nil) {
         self.text = text
         self.date = date
         self.pinned = pinned
+        self.app = app
+        self.seconds = seconds
     }
 
-    // Manual decoding so items saved before `pinned` existed still load.
+    // Manual decoding so items saved before newer fields existed still load.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         text = try c.decode(String.self, forKey: .text)
         date = try c.decode(Date.self, forKey: .date)
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        app = try c.decodeIfPresent(String.self, forKey: .app)
+        seconds = try c.decodeIfPresent(Double.self, forKey: .seconds)
     }
 }
 
@@ -202,9 +212,104 @@ enum MenuIcon: String, CaseIterable, Identifiable {
     }
 }
 
+/// Recipe for spec-driven skins: one line of parameters instead of bespoke
+/// styling everywhere. The original ten hand-built skins return nil.
+struct SkinSpec {
+    let palette: Palette
+    let ink: Color
+    let isDark: Bool
+    let fontName: String?
+    let fontDesign: Font.Design
+    let pillFill: Color
+    let pillBorder: Color
+    let pillRadius: CGFloat
+    let glow: Color
+
+    func font(_ size: CGFloat, _ weight: Font.Weight) -> Font {
+        if let fontName { return .custom(fontName, size: size) }
+        return .system(size: size, weight: weight, design: fontDesign)
+    }
+
+    static func dark(_ r: Double, _ g: Double, _ b: Double, ink: Color,
+                     font: String? = nil, design: Font.Design = .default,
+                     radius: CGFloat = 100) -> SkinSpec {
+        SkinSpec(
+            palette: Palette(
+                bg: Color(red: r, green: g, blue: b),
+                sidebar: Color(red: min(1, r + 0.018), green: min(1, g + 0.018), blue: min(1, b + 0.022)),
+                card: Color(red: min(1, r + 0.045), green: min(1, g + 0.045), blue: min(1, b + 0.055)),
+                border: ink.opacity(0.28),
+                text: Color(white: 0.93),
+                subtext: Color(white: 0.62)),
+            ink: ink, isDark: true, fontName: font, fontDesign: design,
+            pillFill: Color(red: min(1, r + 0.025), green: min(1, g + 0.025), blue: min(1, b + 0.03)),
+            pillBorder: ink.opacity(0.6), pillRadius: radius, glow: ink)
+    }
+
+    static func light(_ r: Double, _ g: Double, _ b: Double, ink: Color,
+                      font: String? = nil, design: Font.Design = .default,
+                      radius: CGFloat = 100) -> SkinSpec {
+        SkinSpec(
+            palette: Palette(
+                bg: Color(red: r, green: g, blue: b),
+                sidebar: Color(red: max(0, r - 0.035), green: max(0, g - 0.035), blue: max(0, b - 0.03)),
+                card: Color(red: 0.995, green: 0.995, blue: 0.995),
+                border: ink.opacity(0.30),
+                text: Color(red: 0.16, green: 0.14, blue: 0.15),
+                subtext: Color(red: 0.45, green: 0.43, blue: 0.44)),
+            ink: ink, isDark: false, fontName: font, fontDesign: design,
+            pillFill: Color(red: 0.995, green: 0.995, blue: 0.995),
+            pillBorder: ink.opacity(0.55), pillRadius: radius, glow: ink)
+    }
+}
+
 enum AppSkin: String, CaseIterable, Identifiable {
-    case clean, sketch, terminal, blueprint, retro, neon
+    // Hand-built originals
+    case clean, sketch, terminal, blueprint, retro, neon, paper, midnight, forest, candy
+    // Spec-driven — dark
+    case ocean, lava, slate, grape, coffee, cherry, gold, denim, olive, charcoal,
+         cyber, storm, pumpkin
+    // Spec-driven — light
+    case ice, lavender, mint, sand, rose, linen, honey
     var id: String { rawValue }
+
+    /// The recipe for spec-driven skins; nil for the hand-built originals.
+    var spec: SkinSpec? {
+        switch self {
+        case .ocean: return .dark(0.016, 0.075, 0.11, ink: Color(red: 0.35, green: 0.78, blue: 0.90))
+        case .lava: return .dark(0.09, 0.03, 0.02, ink: Color(red: 1.0, green: 0.45, blue: 0.25))
+        case .slate: return .dark(0.09, 0.10, 0.12, ink: Color(red: 0.55, green: 0.65, blue: 0.78), radius: 14)
+        case .grape: return .dark(0.08, 0.04, 0.12, ink: Color(red: 0.72, green: 0.52, blue: 0.95))
+        case .coffee: return .dark(0.10, 0.07, 0.05, ink: Color(red: 0.78, green: 0.62, blue: 0.46), font: "Baskerville")
+        case .cherry: return .dark(0.10, 0.03, 0.05, ink: Color(red: 0.95, green: 0.35, blue: 0.45))
+        case .gold: return .dark(0.08, 0.075, 0.06, ink: Color(red: 0.87, green: 0.72, blue: 0.35), font: "Didot")
+        case .denim: return .dark(0.07, 0.09, 0.14, ink: Color(red: 0.52, green: 0.68, blue: 0.92), radius: 16)
+        case .olive: return .dark(0.08, 0.09, 0.05, ink: Color(red: 0.70, green: 0.75, blue: 0.40))
+        case .charcoal: return .dark(0.10, 0.10, 0.10, ink: Color(white: 0.75), radius: 14)
+        case .cyber: return .dark(0.05, 0.05, 0.04, ink: Color(red: 0.95, green: 0.90, blue: 0.15), font: "Menlo", radius: 6)
+        case .storm: return .dark(0.07, 0.08, 0.10, ink: Color(red: 0.60, green: 0.70, blue: 0.80))
+        case .pumpkin: return .dark(0.07, 0.045, 0.02, ink: Color(red: 0.98, green: 0.55, blue: 0.15))
+        case .ice: return .light(0.93, 0.96, 0.985, ink: Color(red: 0.30, green: 0.52, blue: 0.72))
+        case .lavender: return .light(0.955, 0.94, 0.985, ink: Color(red: 0.55, green: 0.42, blue: 0.80))
+        case .mint: return .light(0.93, 0.975, 0.945, ink: Color(red: 0.22, green: 0.60, blue: 0.42))
+        case .sand: return .light(0.965, 0.935, 0.875, ink: Color(red: 0.62, green: 0.44, blue: 0.24), font: "Avenir Next")
+        case .rose: return .light(0.985, 0.94, 0.945, ink: Color(red: 0.80, green: 0.36, blue: 0.48))
+        case .linen: return .light(0.955, 0.95, 0.94, ink: Color(red: 0.45, green: 0.42, blue: 0.40), radius: 14)
+        case .honey: return .light(0.99, 0.96, 0.87, ink: Color(red: 0.80, green: 0.58, blue: 0.15))
+        default: return nil
+        }
+    }
+
+    /// Fixed-palette skins force the window appearance so native controls
+    /// (buttons, toggles, pickers) match — nil follows the system.
+    var forcedAppearance: NSAppearance? {
+        if let spec { return NSAppearance(named: spec.isDark ? .darkAqua : .aqua) }
+        switch self {
+        case .clean, .sketch: return nil
+        case .retro, .paper, .candy: return NSAppearance(named: .aqua)
+        default: return NSAppearance(named: .darkAqua)
+        }
+    }
     var label: String {
         switch self {
         case .clean: return "Clean"
@@ -213,6 +318,7 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .blueprint: return "Blueprint"
         case .retro: return "Retro Mac"
         case .neon: return "Neon"
+        default: return rawValue.capitalized
         }
     }
     var symbol: String {
@@ -223,6 +329,30 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .blueprint: return "ruler"
         case .retro: return "macwindow"
         case .neon: return "sparkles"
+        case .paper: return "book.closed"
+        case .midnight: return "moon.stars"
+        case .forest: return "leaf"
+        case .candy: return "heart"
+        case .ocean: return "water.waves"
+        case .lava: return "flame"
+        case .slate: return "rectangle.stack"
+        case .grape: return "circle.hexagongrid"
+        case .coffee: return "cup.and.saucer"
+        case .cherry: return "drop"
+        case .gold: return "crown"
+        case .denim: return "tshirt"
+        case .olive: return "laurel.leading"
+        case .charcoal: return "circle.fill"
+        case .cyber: return "bolt"
+        case .storm: return "cloud.bolt"
+        case .pumpkin: return "moon.haze"
+        case .ice: return "snowflake"
+        case .lavender: return "sparkle"
+        case .mint: return "wind"
+        case .sand: return "sun.max"
+        case .rose: return "camera.macro"
+        case .linen: return "newspaper"
+        case .honey: return "hexagon"
         }
     }
 }
@@ -240,6 +370,12 @@ enum OutputCase: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+enum PillScreen: String, CaseIterable, Identifiable, Codable {
+    case mainScreen = "main", mouse
+    var id: String { rawValue }
+    var label: String { self == .mainScreen ? "Active Screen" : "Mouse Screen" }
+}
+
 enum IdleDotSize: String, CaseIterable, Identifiable, Codable {
     case small, medium, large
     var id: String { rawValue }
@@ -249,6 +385,90 @@ enum IdleDotSize: String, CaseIterable, Identifiable, Codable {
         case .small: return 6
         case .medium: return 9
         case .large: return 13
+        }
+    }
+}
+
+enum CensorStyle: String, CaseIterable, Identifiable, Codable {
+    case asterisks, bullets, redacted
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .asterisks: return "d***"
+        case .bullets: return "••••"
+        case .redacted: return "[redacted]"
+        }
+    }
+}
+
+enum DateStyleChoice: String, CaseIterable, Identifiable, Codable {
+    case short, medium, long, iso
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .short: return "7/16/26"
+        case .medium: return "Jul 16, 2026"
+        case .long: return "July 16, 2026"
+        case .iso: return "2026-07-16"
+        }
+    }
+    func format(_ date: Date) -> String {
+        let df = DateFormatter()
+        switch self {
+        case .short: df.dateStyle = .short
+        case .medium: df.dateStyle = .medium
+        case .long: df.dateStyle = .long
+        case .iso: df.dateFormat = "yyyy-MM-dd"
+        }
+        return df.string(from: date)
+    }
+}
+
+enum PillTextColor: String, CaseIterable, Identifiable, Codable {
+    case auto, white, black
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
+enum StatusDotStyle: String, CaseIterable, Identifiable, Codable {
+    case dot, mic, none
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .dot: return "Dot"
+        case .mic: return "Mic"
+        case .none: return "None"
+        }
+    }
+}
+
+enum TimerFormat: String, CaseIterable, Identifiable, Codable {
+    case mmss, seconds
+    var id: String { rawValue }
+    var label: String { self == .mmss ? "0:42" : "42s" }
+}
+
+enum EntranceAnim: String, CaseIterable, Identifiable, Codable {
+    case spring, fade, none
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
+enum IdleDotColor: String, CaseIterable, Identifiable, Codable {
+    case accent, gray
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
+enum PillFontWeight: String, CaseIterable, Identifiable, Codable {
+    case regular, medium, semibold
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+    var weight: Font.Weight {
+        switch self {
+        case .regular: return .regular
+        case .medium: return .medium
+        case .semibold: return .semibold
         }
     }
 }
@@ -332,7 +552,7 @@ enum PillFont: String, CaseIterable, Identifiable, Codable {
 }
 
 enum HistorySort: String, CaseIterable, Identifiable {
-    case newest, oldest, longest
+    case newest, oldest, longest, shortest
     var id: String { rawValue }
     var label: String { rawValue.capitalized }
 }
@@ -343,6 +563,26 @@ struct AppRule: Codable, Identifiable, Equatable {
     var appName: String
     var tone: PolishTone = .clean
     var ocase: OutputCase = .asSpoken
+    /// nil = inherit the global AI-polish setting.
+    var polish: Bool?
+
+    init(appName: String, tone: PolishTone = .clean, ocase: OutputCase = .asSpoken,
+         polish: Bool? = nil) {
+        self.appName = appName
+        self.tone = tone
+        self.ocase = ocase
+        self.polish = polish
+    }
+
+    // Manual decoding so rules saved before newer fields existed still load.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        appName = try c.decode(String.self, forKey: .appName)
+        tone = try c.decodeIfPresent(PolishTone.self, forKey: .tone) ?? .clean
+        ocase = try c.decodeIfPresent(OutputCase.self, forKey: .ocase) ?? .asSpoken
+        polish = try c.decodeIfPresent(Bool.self, forKey: .polish)
+    }
 }
 
 /// A spoken phrase that gets swapped for custom text after transcription.
@@ -398,13 +638,29 @@ final class AppSettings: ObservableObject {
     }
     @Published var accentHue: Double { didSet { d.set(accentHue, forKey: "accentHue") } }
     @Published var accentSat: Double { didSet { d.set(accentSat, forKey: "accentSat") } }
-    var accentColor: Color { Color(hue: accentHue, saturation: accentSat, brightness: 1.0) }
+    var accentColor: Color {
+        useSystemAccent ? Color(nsColor: .controlAccentColor)
+                        : Color(hue: accentHue, saturation: accentSat, brightness: 1.0)
+    }
     /// Legible text color on top of the accent — dark ink on light accents,
     /// white on dark ones.
     var accentContrastColor: Color {
-        let c = NSColor(hue: accentHue, saturation: accentSat, brightness: 1.0, alpha: 1)
-        let luminance = 0.299 * c.redComponent + 0.587 * c.greenComponent + 0.114 * c.blueComponent
+        let base = useSystemAccent
+            ? (NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .controlAccentColor)
+            : NSColor(hue: accentHue, saturation: accentSat, brightness: 1.0, alpha: 1)
+        let luminance = 0.299 * base.redComponent + 0.587 * base.greenComponent + 0.114 * base.blueComponent
         return luminance > 0.66 ? Color(white: 0.12) : .white
+    }
+
+    /// Custom pill background color parsed from pillBgHex ("" = default look).
+    var pillBgColor: Color? {
+        var hex = pillBgHex.trimmingCharacters(in: .whitespaces)
+        guard !hex.isEmpty else { return nil }
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        guard hex.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
+        return Color(red: Double((v >> 16) & 0xFF) / 255,
+                     green: Double((v >> 8) & 0xFF) / 255,
+                     blue: Double(v & 0xFF) / 255)
     }
 
     var accentHex: String {
@@ -507,19 +763,112 @@ final class AppSettings: ObservableObject {
     @Published var showPillTimer: Bool { didSet { d.set(showPillTimer, forKey: "showPillTimer") } }
     @Published var waveMonochrome: Bool { didSet { d.set(waveMonochrome, forKey: "waveMono") } }
     @Published var idleDotSize: IdleDotSize { didSet { d.set(idleDotSize.rawValue, forKey: "idleDotSize") } }
+    @Published var idleDotOpacity: Double { didSet { d.set(idleDotOpacity, forKey: "idleDotOpacity") } }
+    @Published var spokenPunctuation: Bool { didSet { d.set(spokenPunctuation, forKey: "spokenPunct") } }
+    @Published var censorWords: [String] { didSet { d.set(censorWords, forKey: "censorWords") } }
+    @Published var replacementsEnabled: Bool { didSet { d.set(replacementsEnabled, forKey: "replOn") } }
+    @Published var pillClickToFinish: Bool { didSet { d.set(pillClickToFinish, forKey: "pillTap") } }
+    @Published var showPillWhileRecording: Bool { didSet { d.set(showPillWhileRecording, forKey: "showPill") } }
+    @Published var pillScreen: PillScreen { didSet { d.set(pillScreen.rawValue, forKey: "pillScreen") } }
+    @Published var autoBackupWeekly: Bool { didSet { d.set(autoBackupWeekly, forKey: "autoBackup") } }
+    @Published var pillTextSize: Double { didSet { d.set(pillTextSize, forKey: "pillTextSize") } }
+    @Published var transcriptWidth: Double { didSet { d.set(transcriptWidth, forKey: "transcriptWidth") } }
+    @Published var showTargetIcon: Bool { didSet { d.set(showTargetIcon, forKey: "showTargetIcon") } }
+
+    // General v2.5
+    @Published var numbersToDigits: Bool { didSet { d.set(numbersToDigits, forKey: "numToDigits") } }
+    @Published var removeDoubledWords: Bool { didSet { d.set(removeDoubledWords, forKey: "deDouble") } }
+    @Published var ensureEndPunctuation: Bool { didSet { d.set(ensureEndPunctuation, forKey: "endPunct") } }
+    @Published var stripStarterWords: Bool { didSet { d.set(stripStarterWords, forKey: "stripStarters") } }
+    @Published var holdOnlyMode: Bool { didSet { d.set(holdOnlyMode, forKey: "holdOnly") } }
+    @Published var hapticsEnabled: Bool { didSet { d.set(hapticsEnabled, forKey: "haptics") } }
+    @Published var menuClickToTalk: Bool { didSet { d.set(menuClickToTalk, forKey: "menuClickTalk") } }
+    @Published var insertDelay: Double { didSet { d.set(insertDelay, forKey: "insertDelay") } }
+    @Published var restoreDelay: Double { didSet { d.set(restoreDelay, forKey: "restoreDelay") } }
+    @Published var unlockSoundEnabled: Bool { didSet { d.set(unlockSoundEnabled, forKey: "unlockSound") } }
+    @Published var goalCelebration: Bool { didSet { d.set(goalCelebration, forKey: "goalCeleb") } }
+    @Published var updateCheckWeekly: Bool { didSet { d.set(updateCheckWeekly, forKey: "updateCheck") } }
+    @Published var quietHours: Bool { didSet { d.set(quietHours, forKey: "quietHours") } }
+    @Published var showMenuTimer: Bool { didSet { d.set(showMenuTimer, forKey: "menuTimer") } }
+    @Published var chainMode: Bool { didSet { d.set(chainMode, forKey: "chainMode") } }
+    @Published var cancelOnScreenLock: Bool { didSet { d.set(cancelOnScreenLock, forKey: "lockCancel") } }
+    @Published var pasteMatchStyle: Bool { didSet { d.set(pasteMatchStyle, forKey: "pasteMatch") } }
+    /// Set when a newer release tag was found on GitHub (not persisted).
+    @Published var availableUpdate: String?
+
+    // Dictionary v2.5
+    @Published var preserveCaseReplacements: Bool { didSet { d.set(preserveCaseReplacements, forKey: "preserveCase") } }
+    @Published var matchInsideWords: Bool { didSet { d.set(matchInsideWords, forKey: "matchInside") } }
+    @Published var importReplaces: Bool { didSet { d.set(importReplaces, forKey: "importReplaces") } }
+    @Published var autoSortReplacements: Bool { didSet { d.set(autoSortReplacements, forKey: "autoSortRepl") } }
+    @Published var emojiCommands: Bool { didSet { d.set(emojiCommands, forKey: "emojiCmds") } }
+    @Published var censorStyle: CensorStyle { didSet { d.set(censorStyle.rawValue, forKey: "censorStyle") } }
+    @Published var dateStyleChoice: DateStyleChoice { didSet { d.set(dateStyleChoice.rawValue, forKey: "dateStyle") } }
+    @Published var vocabWords: [String] { didSet { d.set(vocabWords, forKey: "vocabWords") } }
+
+    // Appearance v2.5
+    @Published var barWidth: Double { didSet { d.set(barWidth, forKey: "barWidth") } }
+    @Published var barSpacing: Double { didSet { d.set(barSpacing, forKey: "barSpacing") } }
+    @Published var squareBars: Bool { didSet { d.set(squareBars, forKey: "squareBars") } }
+    @Published var shadowStrength: Double { didSet { d.set(shadowStrength, forKey: "shadowStrength") } }
+    @Published var pillNudge: Double { didSet { d.set(pillNudge, forKey: "pillNudge") } }
+    @Published var pillBgHex: String { didSet { d.set(pillBgHex, forKey: "pillBgHex") } }
+    @Published var pillTextColor: PillTextColor { didSet { d.set(pillTextColor.rawValue, forKey: "pillTextColor") } }
+    @Published var statusDotStyle: StatusDotStyle { didSet { d.set(statusDotStyle.rawValue, forKey: "statusDotStyle") } }
+    @Published var timerFormat: TimerFormat { didSet { d.set(timerFormat.rawValue, forKey: "timerFormat") } }
+    @Published var entranceAnim: EntranceAnim { didSet { d.set(entranceAnim.rawValue, forKey: "entranceAnim") } }
+    @Published var doneLinger: Double { didSet { d.set(doneLinger, forKey: "doneLinger") } }
+    @Published var idleDotColor: IdleDotColor { didSet { d.set(idleDotColor.rawValue, forKey: "idleDotColor") } }
+    @Published var idleDotAlignment: PillAlignment { didSet { d.set(idleDotAlignment.rawValue, forKey: "idleDotAlign") } }
+    @Published var menuSymbolName: String { didSet { d.set(menuSymbolName, forKey: "menuSymbol") } }
+    @Published var useSystemAccent: Bool { didSet { d.set(useSystemAccent, forKey: "sysAccent") } }
+    @Published var pillFontWeight: PillFontWeight { didSet { d.set(pillFontWeight.rawValue, forKey: "pillWeight") } }
+    @Published var uppercasePill: Bool { didSet { d.set(uppercasePill, forKey: "upperPill") } }
+    @Published var sidebarFilledIcons: Bool { didSet { d.set(sidebarFilledIcons, forKey: "sidebarFill") } }
+    @Published var showLivePreviewBar: Bool { didSet { d.set(showLivePreviewBar, forKey: "livePreview") } }
+    @Published var previewSampleText: String { didSet { d.set(previewSampleText, forKey: "previewText") } }
+
+    // Stats v2.5 (data counters + options)
+    @Published var totalChars: Int { didSet { d.set(totalChars, forKey: "totalChars") } }
+    @Published var maxSessionWords: Int { didSet { d.set(maxSessionWords, forKey: "maxSessWords") } }
+    @Published var commandsUsed: Int { didSet { d.set(commandsUsed, forKey: "commandsUsed") } }
+    @Published var polishedCount: Int { didSet { d.set(polishedCount, forKey: "polishedCount") } }
+    @Published var hourCounts: [String: Int] { didSet { d.set(hourCounts, forKey: "hourCounts") } }
+    @Published var appWords: [String: Int] { didSet { d.set(appWords, forKey: "appWords") } }
+    @Published var dailySessions: [String: Int] { didSet { d.set(dailySessions, forKey: "dailySessions") } }
+    @Published var weeklyGoal: Int { didSet { d.set(weeklyGoal, forKey: "weeklyGoal") } }
+
+    // History v2.5
+    @Published var pinnedFirst: Bool { didSet { d.set(pinnedFirst, forKey: "pinnedFirst") } }
+    @Published var historyPaused: Bool { didSet { d.set(historyPaused, forKey: "histPaused") } }
+    @Published var excludeClipboardOnly: Bool { didSet { d.set(excludeClipboardOnly, forKey: "histNoClip") } }
+    /// Items removed by the last "Clear History", for Undo (not persisted).
+    @Published var lastCleared: [HistoryItem] = []
 
     var minutesSaved: Double { Double(totalWords) * (1.0 / 40.0 - 1.0 / 150.0) }
 
     /// Records a delivered dictation and returns any newly unlocked achievements.
     @discardableResult
-    func record(_ text: String, usedPolish: Bool = false, usedCommands: Bool = false) -> [Achievement] {
-        // Pinned items always survive trimming.
-        let pinnedItems = history.filter(\.pinned)
-        let unpinned = [HistoryItem(text: text, date: Date())] + history.filter { !$0.pinned }
-        history = pinnedItems + Array(unpinned.prefix(max(10, historyLimit - pinnedItems.count)))
+    func record(_ text: String, usedPolish: Bool = false, usedCommands: Bool = false,
+                app: String? = nil, seconds: Double? = nil,
+                saveToHistory: Bool = true) -> [Achievement] {
+        if saveToHistory, !historyPaused {
+            // Pinned items always survive trimming.
+            let pinnedItems = history.filter(\.pinned)
+            let unpinned = [HistoryItem(text: text, date: Date(), app: app, seconds: seconds)]
+                + history.filter { !$0.pinned }
+            history = pinnedItems + Array(unpinned.prefix(max(10, historyLimit - pinnedItems.count)))
+        }
         let words = text.split(whereSeparator: \.isWhitespace).count
         totalWords += words
         totalSessions += 1
+        totalChars += text.count
+        maxSessionWords = max(maxSessionWords, words)
+        if usedCommands { commandsUsed += 1 }
+        if usedPolish { polishedCount += 1 }
+        hourCounts["\(Calendar.current.component(.hour, from: Date()))", default: 0] += 1
+        if let app, !app.isEmpty { appWords[app, default: 0] += words }
+        dailySessions[Self.dayKey(Date()), default: 0] += 1
         dailyWords[Self.dayKey(Date()), default: 0] += words
         if dailyWords.count > 90 {
             let keep = Set(dailyWords.keys.sorted().suffix(60))
@@ -590,14 +939,39 @@ final class AppSettings: ObservableObject {
             var pillMatchesSkin, capitalizeI, smartPunctuation, trailingSpace,
                 noTrailingPeriod, keepTranscriptOnClipboard, showMenuBarStreak,
                 caseSensitiveReplacements, recordTintAccent, idleIndicator, reduceMotion,
-                autoCapSentences, trailingNewline, showPillTimer, waveMonochrome: Bool?
-            var idleDotSize: String?
+                autoCapSentences, trailingNewline, showPillTimer, waveMonochrome,
+                spokenPunctuation, replacementsEnabled, pillClickToFinish,
+                showPillWhileRecording, autoBackupWeekly, showTargetIcon: Bool?
+            var idleDotSize, pillScreen: String?
+            var idleDotOpacity, pillTextSize, transcriptWidth: Double?
+            var censorWords: [String]?
             var soundVolume, pillBorderWidth, glowIntensity, waveGain,
                 pillEdgeOffset, totalSpeakSeconds: Double?
             var historyLimit, discardShortWords, maxRecordSeconds,
                 longToClipboardWords, waveBarCount, historyMaxAgeDays: Int?
             var fillerWords: [String]?
             var appRules: [AppRule]?
+        }
+
+        /// v2.5 additions — same optional/back-compat pattern as Extra.
+        var extra2: Extra2?
+
+        struct Extra2: Codable {
+            var numbersToDigits, removeDoubledWords, ensureEndPunctuation, stripStarterWords,
+                holdOnlyMode, hapticsEnabled, menuClickToTalk, unlockSoundEnabled,
+                goalCelebration, updateCheckWeekly, quietHours, showMenuTimer, chainMode,
+                cancelOnScreenLock, pasteMatchStyle, preserveCaseReplacements, matchInsideWords,
+                importReplaces, autoSortReplacements, emojiCommands, squareBars, useSystemAccent,
+                uppercasePill, sidebarFilledIcons, showLivePreviewBar, pinnedFirst,
+                historyPaused, excludeClipboardOnly: Bool?
+            var insertDelay, restoreDelay, barWidth, barSpacing, shadowStrength, pillNudge,
+                doneLinger: Double?
+            var censorStyle, dateStyleChoice, pillBgHex, pillTextColor, statusDotStyle,
+                timerFormat, entranceAnim, idleDotColor, idleDotAlignment, menuSymbolName,
+                pillFontWeight, previewSampleText: String?
+            var totalChars, maxSessionWords, commandsUsed, polishedCount, weeklyGoal: Int?
+            var vocabWords: [String]?
+            var hourCounts, appWords, dailySessions: [String: Int]?
         }
     }
 
@@ -632,15 +1006,49 @@ final class AppSettings: ObservableObject {
                 recordTintAccent: recordTintAccent, idleIndicator: idleIndicator,
                 reduceMotion: reduceMotion, autoCapSentences: autoCapSentences,
                 trailingNewline: trailingNewline, showPillTimer: showPillTimer,
-                waveMonochrome: waveMonochrome,
-                idleDotSize: idleDotSize.rawValue, soundVolume: soundVolume,
+                waveMonochrome: waveMonochrome, spokenPunctuation: spokenPunctuation,
+                replacementsEnabled: replacementsEnabled, pillClickToFinish: pillClickToFinish,
+                showPillWhileRecording: showPillWhileRecording, autoBackupWeekly: autoBackupWeekly,
+                showTargetIcon: showTargetIcon,
+                idleDotSize: idleDotSize.rawValue, pillScreen: pillScreen.rawValue,
+                idleDotOpacity: idleDotOpacity, pillTextSize: pillTextSize,
+                transcriptWidth: transcriptWidth, censorWords: censorWords,
+                soundVolume: soundVolume,
                 pillBorderWidth: pillBorderWidth, glowIntensity: glowIntensity,
                 waveGain: waveGain, pillEdgeOffset: pillEdgeOffset,
                 totalSpeakSeconds: totalSpeakSeconds, historyLimit: historyLimit,
                 discardShortWords: discardShortWords, maxRecordSeconds: maxRecordSeconds,
                 longToClipboardWords: longToClipboardWords, waveBarCount: waveBarCount,
                 historyMaxAgeDays: historyMaxAgeDays, fillerWords: fillerWords,
-                appRules: appRules))
+                appRules: appRules),
+            extra2: Backup.Extra2(
+                numbersToDigits: numbersToDigits, removeDoubledWords: removeDoubledWords,
+                ensureEndPunctuation: ensureEndPunctuation, stripStarterWords: stripStarterWords,
+                holdOnlyMode: holdOnlyMode, hapticsEnabled: hapticsEnabled,
+                menuClickToTalk: menuClickToTalk, unlockSoundEnabled: unlockSoundEnabled,
+                goalCelebration: goalCelebration, updateCheckWeekly: updateCheckWeekly,
+                quietHours: quietHours, showMenuTimer: showMenuTimer, chainMode: chainMode,
+                cancelOnScreenLock: cancelOnScreenLock, pasteMatchStyle: pasteMatchStyle,
+                preserveCaseReplacements: preserveCaseReplacements,
+                matchInsideWords: matchInsideWords, importReplaces: importReplaces,
+                autoSortReplacements: autoSortReplacements, emojiCommands: emojiCommands,
+                squareBars: squareBars, useSystemAccent: useSystemAccent,
+                uppercasePill: uppercasePill, sidebarFilledIcons: sidebarFilledIcons,
+                showLivePreviewBar: showLivePreviewBar, pinnedFirst: pinnedFirst,
+                historyPaused: historyPaused, excludeClipboardOnly: excludeClipboardOnly,
+                insertDelay: insertDelay, restoreDelay: restoreDelay,
+                barWidth: barWidth, barSpacing: barSpacing, shadowStrength: shadowStrength,
+                pillNudge: pillNudge, doneLinger: doneLinger,
+                censorStyle: censorStyle.rawValue, dateStyleChoice: dateStyleChoice.rawValue,
+                pillBgHex: pillBgHex, pillTextColor: pillTextColor.rawValue,
+                statusDotStyle: statusDotStyle.rawValue, timerFormat: timerFormat.rawValue,
+                entranceAnim: entranceAnim.rawValue, idleDotColor: idleDotColor.rawValue,
+                idleDotAlignment: idleDotAlignment.rawValue, menuSymbolName: menuSymbolName,
+                pillFontWeight: pillFontWeight.rawValue, previewSampleText: previewSampleText,
+                totalChars: totalChars, maxSessionWords: maxSessionWords,
+                commandsUsed: commandsUsed, polishedCount: polishedCount,
+                weeklyGoal: weeklyGoal, vocabWords: vocabWords,
+                hourCounts: hourCounts, appWords: appWords, dailySessions: dailySessions))
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try enc.encode(b)
@@ -704,9 +1112,78 @@ final class AppSettings: ObservableObject {
             if let v = e.trailingNewline { trailingNewline = v }
             if let v = e.showPillTimer { showPillTimer = v }
             if let v = e.waveMonochrome { waveMonochrome = v }
+            if let v = e.spokenPunctuation { spokenPunctuation = v }
+            if let v = e.replacementsEnabled { replacementsEnabled = v }
+            if let v = e.pillClickToFinish { pillClickToFinish = v }
+            if let v = e.showPillWhileRecording { showPillWhileRecording = v }
+            if let v = e.autoBackupWeekly { autoBackupWeekly = v }
+            if let v = e.showTargetIcon { showTargetIcon = v }
+            if let v = e.pillScreen { pillScreen = PillScreen(rawValue: v) ?? pillScreen }
+            if let v = e.idleDotOpacity { idleDotOpacity = v }
+            if let v = e.pillTextSize { pillTextSize = v }
+            if let v = e.transcriptWidth { transcriptWidth = v }
+            if let v = e.censorWords { censorWords = v }
             if let v = e.idleDotSize { idleDotSize = IdleDotSize(rawValue: v) ?? idleDotSize }
             if let v = e.fillerWords { fillerWords = v }
             if let v = e.appRules { appRules = v }
+        }
+        if let e = b.extra2 {
+            if let v = e.numbersToDigits { numbersToDigits = v }
+            if let v = e.removeDoubledWords { removeDoubledWords = v }
+            if let v = e.ensureEndPunctuation { ensureEndPunctuation = v }
+            if let v = e.stripStarterWords { stripStarterWords = v }
+            if let v = e.holdOnlyMode { holdOnlyMode = v }
+            if let v = e.hapticsEnabled { hapticsEnabled = v }
+            if let v = e.menuClickToTalk { menuClickToTalk = v }
+            if let v = e.unlockSoundEnabled { unlockSoundEnabled = v }
+            if let v = e.goalCelebration { goalCelebration = v }
+            if let v = e.updateCheckWeekly { updateCheckWeekly = v }
+            if let v = e.quietHours { quietHours = v }
+            if let v = e.showMenuTimer { showMenuTimer = v }
+            if let v = e.chainMode { chainMode = v }
+            if let v = e.cancelOnScreenLock { cancelOnScreenLock = v }
+            if let v = e.pasteMatchStyle { pasteMatchStyle = v }
+            if let v = e.preserveCaseReplacements { preserveCaseReplacements = v }
+            if let v = e.matchInsideWords { matchInsideWords = v }
+            if let v = e.importReplaces { importReplaces = v }
+            if let v = e.autoSortReplacements { autoSortReplacements = v }
+            if let v = e.emojiCommands { emojiCommands = v }
+            if let v = e.squareBars { squareBars = v }
+            if let v = e.useSystemAccent { useSystemAccent = v }
+            if let v = e.uppercasePill { uppercasePill = v }
+            if let v = e.sidebarFilledIcons { sidebarFilledIcons = v }
+            if let v = e.showLivePreviewBar { showLivePreviewBar = v }
+            if let v = e.pinnedFirst { pinnedFirst = v }
+            if let v = e.historyPaused { historyPaused = v }
+            if let v = e.excludeClipboardOnly { excludeClipboardOnly = v }
+            if let v = e.insertDelay { insertDelay = v }
+            if let v = e.restoreDelay { restoreDelay = v }
+            if let v = e.barWidth { barWidth = v }
+            if let v = e.barSpacing { barSpacing = v }
+            if let v = e.shadowStrength { shadowStrength = v }
+            if let v = e.pillNudge { pillNudge = v }
+            if let v = e.doneLinger { doneLinger = v }
+            if let v = e.censorStyle { censorStyle = CensorStyle(rawValue: v) ?? censorStyle }
+            if let v = e.dateStyleChoice { dateStyleChoice = DateStyleChoice(rawValue: v) ?? dateStyleChoice }
+            if let v = e.pillBgHex { pillBgHex = v }
+            if let v = e.pillTextColor { pillTextColor = PillTextColor(rawValue: v) ?? pillTextColor }
+            if let v = e.statusDotStyle { statusDotStyle = StatusDotStyle(rawValue: v) ?? statusDotStyle }
+            if let v = e.timerFormat { timerFormat = TimerFormat(rawValue: v) ?? timerFormat }
+            if let v = e.entranceAnim { entranceAnim = EntranceAnim(rawValue: v) ?? entranceAnim }
+            if let v = e.idleDotColor { idleDotColor = IdleDotColor(rawValue: v) ?? idleDotColor }
+            if let v = e.idleDotAlignment { idleDotAlignment = PillAlignment(rawValue: v) ?? idleDotAlignment }
+            if let v = e.menuSymbolName { menuSymbolName = v }
+            if let v = e.pillFontWeight { pillFontWeight = PillFontWeight(rawValue: v) ?? pillFontWeight }
+            if let v = e.previewSampleText { previewSampleText = v }
+            if let v = e.totalChars { totalChars = v }
+            if let v = e.maxSessionWords { maxSessionWords = v }
+            if let v = e.commandsUsed { commandsUsed = v }
+            if let v = e.polishedCount { polishedCount = v }
+            if let v = e.weeklyGoal { weeklyGoal = v }
+            if let v = e.vocabWords { vocabWords = v }
+            if let v = e.hourCounts { hourCounts = v }
+            if let v = e.appWords { appWords = v }
+            if let v = e.dailySessions { dailySessions = v }
         }
     }
 
@@ -772,6 +1249,29 @@ final class AppSettings: ObservableObject {
         maxStreak = 0
         dailyWords = [:]
         totalSpeakSeconds = 0
+        totalChars = 0
+        maxSessionWords = 0
+        commandsUsed = 0
+        polishedCount = 0
+        hourCounts = [:]
+        appWords = [:]
+        dailySessions = [:]
+    }
+
+    /// Consecutive days (ending today or yesterday) that hit the daily goal.
+    func goalStreak() -> Int {
+        guard dailyGoal > 0 else { return 0 }
+        let cal = Calendar.current
+        var day = Date()
+        var count = 0
+        if (dailyWords[Self.dayKey(day)] ?? 0) < dailyGoal {
+            day = cal.date(byAdding: .day, value: -1, to: day) ?? day
+        }
+        while (dailyWords[Self.dayKey(day)] ?? 0) >= dailyGoal {
+            count += 1
+            day = cal.date(byAdding: .day, value: -1, to: day) ?? day
+        }
+        return count
     }
 
     /// Words per day for the trailing 30 days, oldest first.
@@ -916,6 +1416,73 @@ final class AppSettings: ObservableObject {
         showPillTimer = d.object(forKey: "showPillTimer") as? Bool ?? true
         waveMonochrome = d.bool(forKey: "waveMono")
         idleDotSize = IdleDotSize(rawValue: d.string(forKey: "idleDotSize") ?? "") ?? .medium
+        idleDotOpacity = d.object(forKey: "idleDotOpacity") as? Double ?? 0.5
+        spokenPunctuation = d.bool(forKey: "spokenPunct")
+        censorWords = d.stringArray(forKey: "censorWords") ?? []
+        replacementsEnabled = d.object(forKey: "replOn") as? Bool ?? true
+        pillClickToFinish = d.bool(forKey: "pillTap")
+        showPillWhileRecording = d.object(forKey: "showPill") as? Bool ?? true
+        pillScreen = PillScreen(rawValue: d.string(forKey: "pillScreen") ?? "") ?? .mainScreen
+        autoBackupWeekly = d.bool(forKey: "autoBackup")
+        pillTextSize = d.object(forKey: "pillTextSize") as? Double ?? 14
+        transcriptWidth = d.object(forKey: "transcriptWidth") as? Double ?? 270
+        showTargetIcon = d.object(forKey: "showTargetIcon") as? Bool ?? true
+        numbersToDigits = d.bool(forKey: "numToDigits")
+        removeDoubledWords = d.bool(forKey: "deDouble")
+        ensureEndPunctuation = d.bool(forKey: "endPunct")
+        stripStarterWords = d.bool(forKey: "stripStarters")
+        holdOnlyMode = d.bool(forKey: "holdOnly")
+        hapticsEnabled = d.bool(forKey: "haptics")
+        menuClickToTalk = d.bool(forKey: "menuClickTalk")
+        insertDelay = d.object(forKey: "insertDelay") as? Double ?? 0
+        restoreDelay = d.object(forKey: "restoreDelay") as? Double ?? 0.8
+        unlockSoundEnabled = d.object(forKey: "unlockSound") as? Bool ?? true
+        goalCelebration = d.object(forKey: "goalCeleb") as? Bool ?? true
+        updateCheckWeekly = d.bool(forKey: "updateCheck")
+        quietHours = d.bool(forKey: "quietHours")
+        showMenuTimer = d.bool(forKey: "menuTimer")
+        chainMode = d.bool(forKey: "chainMode")
+        cancelOnScreenLock = d.object(forKey: "lockCancel") as? Bool ?? true
+        pasteMatchStyle = d.bool(forKey: "pasteMatch")
+        preserveCaseReplacements = d.bool(forKey: "preserveCase")
+        matchInsideWords = d.bool(forKey: "matchInside")
+        importReplaces = d.bool(forKey: "importReplaces")
+        autoSortReplacements = d.bool(forKey: "autoSortRepl")
+        emojiCommands = d.object(forKey: "emojiCmds") as? Bool ?? true
+        censorStyle = CensorStyle(rawValue: d.string(forKey: "censorStyle") ?? "") ?? .asterisks
+        dateStyleChoice = DateStyleChoice(rawValue: d.string(forKey: "dateStyle") ?? "") ?? .medium
+        vocabWords = d.stringArray(forKey: "vocabWords") ?? []
+        barWidth = d.object(forKey: "barWidth") as? Double ?? 3
+        barSpacing = d.object(forKey: "barSpacing") as? Double ?? 2.5
+        squareBars = d.bool(forKey: "squareBars")
+        shadowStrength = d.object(forKey: "shadowStrength") as? Double ?? 1.0
+        pillNudge = d.object(forKey: "pillNudge") as? Double ?? 0
+        pillBgHex = d.string(forKey: "pillBgHex") ?? ""
+        pillTextColor = PillTextColor(rawValue: d.string(forKey: "pillTextColor") ?? "") ?? .auto
+        statusDotStyle = StatusDotStyle(rawValue: d.string(forKey: "statusDotStyle") ?? "") ?? .dot
+        timerFormat = TimerFormat(rawValue: d.string(forKey: "timerFormat") ?? "") ?? .mmss
+        entranceAnim = EntranceAnim(rawValue: d.string(forKey: "entranceAnim") ?? "") ?? .spring
+        doneLinger = d.object(forKey: "doneLinger") as? Double ?? 1.1
+        idleDotColor = IdleDotColor(rawValue: d.string(forKey: "idleDotColor") ?? "") ?? .accent
+        idleDotAlignment = PillAlignment(rawValue: d.string(forKey: "idleDotAlign") ?? "") ?? .center
+        menuSymbolName = d.string(forKey: "menuSymbol") ?? ""
+        useSystemAccent = d.bool(forKey: "sysAccent")
+        pillFontWeight = PillFontWeight(rawValue: d.string(forKey: "pillWeight") ?? "") ?? .medium
+        uppercasePill = d.bool(forKey: "upperPill")
+        sidebarFilledIcons = d.bool(forKey: "sidebarFill")
+        showLivePreviewBar = d.object(forKey: "livePreview") as? Bool ?? true
+        previewSampleText = d.string(forKey: "previewText") ?? ""
+        totalChars = d.integer(forKey: "totalChars")
+        maxSessionWords = d.integer(forKey: "maxSessWords")
+        commandsUsed = d.integer(forKey: "commandsUsed")
+        polishedCount = d.integer(forKey: "polishedCount")
+        hourCounts = d.dictionary(forKey: "hourCounts") as? [String: Int] ?? [:]
+        appWords = d.dictionary(forKey: "appWords") as? [String: Int] ?? [:]
+        dailySessions = d.dictionary(forKey: "dailySessions") as? [String: Int] ?? [:]
+        weeklyGoal = d.integer(forKey: "weeklyGoal")
+        pinnedFirst = d.object(forKey: "pinnedFirst") as? Bool ?? true
+        historyPaused = d.bool(forKey: "histPaused")
+        excludeClipboardOnly = d.bool(forKey: "histNoClip")
         if let data = d.data(forKey: "replacements"),
            let items = try? JSONDecoder().decode([Replacement].self, from: data) {
             replacements = items
@@ -930,6 +1497,7 @@ final class AppSettings: ObservableObject {
 final class SettingsWindowController {
     static let shared = SettingsWindowController()
     private var window: NSWindow?
+    private var skinWatcher: AnyCancellable?
 
     func show() {
         if window == nil {
@@ -947,7 +1515,13 @@ final class SettingsWindowController {
             w.center()
             w.contentView = NSHostingView(rootView: SettingsRootView())
             window = w
+            // Light skins (Paper, Candy, Retro) need light-styled native
+            // controls even when the system is dark — and vice versa.
+            skinWatcher = AppSettings.shared.$skin.sink { [weak self] skin in
+                self?.window?.appearance = skin.forcedAppearance
+            }
         }
+        window?.appearance = AppSettings.shared.skin.forcedAppearance
         WindowPolicyManager.shared.opened(window!)
         window?.makeKeyAndOrderFront(nil)
     }
@@ -1036,11 +1610,15 @@ struct SettingsRootView: View {
     private func navItem(_ index: Int, _ symbol: String, _ label: String) -> some View {
         let p = Palette.of(scheme)
         let selected = tab == index
+        // Filled variants where SF Symbols has them.
+        let fillable = ["character.book.closed", "paintbrush", "chart.bar"]
+        let name = settings.sidebarFilledIcons && fillable.contains(symbol)
+            ? symbol + ".fill" : symbol
         return Button {
             tab = index
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: symbol)
+                Image(systemName: name)
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 16)
                 Text(label)
@@ -1105,6 +1683,18 @@ struct GeneralPane: View {
                                 .font(.system(size: 12))
                         }
                     }
+                }
+                RowDivider()
+                PRow(title: "Hold-only mode",
+                     subtitle: "Quick taps finish instead of going hands-free") {
+                    Toggle("", isOn: $settings.holdOnlyMode)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Chain dictations",
+                     subtitle: "Start the next hands-free dictation right after each insert") {
+                    Toggle("", isOn: $settings.chainMode)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
             }
             if let warning = hotkeyWarning {
@@ -1197,6 +1787,30 @@ struct GeneralPane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Numbers as digits",
+                     subtitle: "“twenty five” → 25") {
+                    Toggle("", isOn: $settings.numbersToDigits)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Remove doubled words",
+                     subtitle: "“the the” → “the”") {
+                    Toggle("", isOn: $settings.removeDoubledWords)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Strip starter words",
+                     subtitle: "Drops a leading “So,” “Well,” “Okay,”") {
+                    Toggle("", isOn: $settings.stripStarterWords)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Always end with punctuation",
+                     subtitle: "Adds a period when the sentence ends bare") {
+                    Toggle("", isOn: $settings.ensureEndPunctuation)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Drop trailing period") {
                     Toggle("", isOn: $settings.noTrailingPeriod)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
@@ -1271,6 +1885,12 @@ struct GeneralPane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Spoken punctuation",
+                     subtitle: "Say “period”, “comma”, “question mark” to type them") {
+                    Toggle("", isOn: $settings.spokenPunctuation)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Tap vs. hold threshold",
                      subtitle: "Presses shorter than this count as a hands-free tap") {
                     HStack(spacing: 8) {
@@ -1301,6 +1921,59 @@ struct GeneralPane: View {
                 PRow(title: "Insert by typing",
                      subtitle: "Slower, but works in apps that block ⌘V paste") {
                     Toggle("", isOn: $settings.typeInsteadOfPaste)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Paste and match style",
+                     subtitle: "⌥⇧⌘V — takes the destination's formatting") {
+                    Toggle("", isOn: $settings.pasteMatchStyle)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Insert delay",
+                     subtitle: "Pause before pasting, for slow apps") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.insertDelay, in: 0...1)
+                            .frame(width: 110).controlSize(.small)
+                        Text(String(format: "%.1fs", settings.insertDelay))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(p.subtext)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Clipboard restore delay",
+                     subtitle: "How long the transcript stays before the old clipboard returns") {
+                    Slider(value: $settings.restoreDelay, in: 0.3...3)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Haptic feedback",
+                     subtitle: "Trackpad tick on start and insert") {
+                    Toggle("", isOn: $settings.hapticsEnabled)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Left-click icon to dictate",
+                     subtitle: "Menu moves to right-click") {
+                    Toggle("", isOn: $settings.menuClickToTalk)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Recording timer in menu bar") {
+                    Toggle("", isOn: $settings.showMenuTimer)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Cancel when screen locks",
+                     subtitle: "Never leaves the mic open behind a locked screen") {
+                    Toggle("", isOn: $settings.cancelOnScreenLock)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Check for updates weekly",
+                     subtitle: "Shows a menu item when a newer release is out") {
+                    Toggle("", isOn: $settings.updateCheckWeekly)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
@@ -1355,6 +2028,25 @@ struct GeneralPane: View {
                 }
                 if settings.soundsEnabled {
                     RowDivider()
+                    PRow(title: "Quiet hours",
+                         subtitle: "No sound cues between 10 pm and 8 am") {
+                        Toggle("", isOn: $settings.quietHours)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Badge unlock sound") {
+                        Toggle("", isOn: $settings.unlockSoundEnabled)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Celebrate daily goal",
+                         subtitle: "Pill flashes 🎯 when you hit your word goal") {
+                        Toggle("", isOn: $settings.goalCelebration)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                }
+                if settings.soundsEnabled {
+                    RowDivider()
                     PRow(title: "Sound theme") {
                         Picker("", selection: $settings.soundTheme) {
                             ForEach(SoundTheme.allCases) { Text($0.label).tag($0) }
@@ -1365,9 +2057,13 @@ struct GeneralPane: View {
                     }
                     RowDivider()
                     PRow(title: "Volume") {
-                        Slider(value: $settings.soundVolume, in: 0.1...1.0)
-                            .frame(width: 130)
-                            .controlSize(.small)
+                        HStack(spacing: 8) {
+                            Slider(value: $settings.soundVolume, in: 0.1...1.0)
+                                .frame(width: 130)
+                                .controlSize(.small)
+                            Button("Preview") { previewSounds() }
+                                .controlSize(.small)
+                        }
                     }
                 }
                 RowDivider()
@@ -1394,12 +2090,49 @@ struct GeneralPane: View {
                     }
                 }
                 RowDivider()
+                PRow(title: "Via clipboard",
+                     subtitle: "Copy the backup JSON, or import what's on the clipboard") {
+                    HStack(spacing: 6) {
+                        Button("Copy") {
+                            if let data = try? settings.exportBackup(),
+                               let json = String(data: data, encoding: .utf8) {
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setString(json, forType: .string)
+                            }
+                        }
+                        Button("Import") {
+                            if let json = NSPasteboard.general.string(forType: .string) {
+                                try? settings.importBackup(Data(json.utf8))
+                            }
+                        }
+                    }
+                    .controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Auto-backup weekly",
+                     subtitle: "Saves a backup to Application Support ▸ Murmur ▸ Backups (keeps 5)") {
+                    Toggle("", isOn: $settings.autoBackupWeekly)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Reset settings to defaults",
                      subtitle: "Keeps your history, dictionary, stats, and badges") {
                     Button("Reset") { settings.resetToDefaults() }
                 }
             }
         }
+    }
+
+    /// Plays the start cue, then the insert cue, at the chosen theme/volume.
+    private func previewSounds() {
+        func play(_ event: SoundEvent) {
+            guard let s = NSSound(named: settings.soundTheme.sound(for: event)) else { return }
+            s.volume = Float(settings.soundVolume)
+            s.play()
+        }
+        play(.start)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { play(.insert) }
     }
 
     private func exportSettings() {
@@ -1517,20 +2250,86 @@ struct DictionaryPane: View {
     @ObservedObject var settings: AppSettings
     @Environment(\.colorScheme) private var scheme
     @State private var testInput = ""
+    @State private var replSearch = ""
+    @State private var fullPipelineTest = false
 
     private func isDuplicate(_ phrase: String) -> Bool {
         !phrase.isEmpty &&
         settings.replacements.filter { $0.phrase.caseInsensitiveCompare(phrase) == .orderedSame }.count > 1
     }
 
-    private func exportDictionary() {
+    private func exportDictionary(enabledOnly: Bool = false) {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "Murmur Dictionary.csv"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let esc: (String) -> String = { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
-        let rows = settings.replacements.map { "\(esc($0.phrase)),\(esc($0.replacement))" }
+        let items = enabledOnly ? settings.replacements.filter(\.enabled) : settings.replacements
+        let rows = items.map { "\(esc($0.phrase)),\(esc($0.replacement))" }
         try? ("phrase,replacement\n" + rows.joined(separator: "\n") + "\n")
             .write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func exportDictionaryJSON() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Murmur Dictionary.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try? enc.encode(settings.replacements).write(to: url)
+    }
+
+    private func sortReplacements() {
+        settings.replacements.sort {
+            $0.phrase.localizedCaseInsensitiveCompare($1.phrase) == .orderedAscending
+        }
+    }
+
+    /// The Try-it box result — commands + replacements, or the whole
+    /// pipeline when "Full pipeline" is on.
+    private var testResult: String {
+        var t = testInput
+        if fullPipelineTest, settings.tidyEnabled { t = TextCleaner.tidy(t) }
+        if fullPipelineTest, settings.stripStarterWords { t = TextCleaner.stripStarterWords(t) }
+        if fullPipelineTest, settings.removeDoubledWords { t = TextCleaner.removeDoubledWords(t) }
+        if settings.voiceCommandsEnabled {
+            t = TextCleaner.applyScratchThat(t)
+            t = TextCleaner.applyCommands(t, includeEmoji: settings.emojiCommands)
+        }
+        if fullPipelineTest, settings.spokenPunctuation { t = TextCleaner.applySpokenPunctuation(t) }
+        if settings.replacementsEnabled { t = TextCleaner.applyReplacements(t, settings.replacements) }
+        t = TextCleaner.expandVariables(t)
+        if fullPipelineTest {
+            if settings.numbersToDigits { t = TextCleaner.numbersToDigits(t) }
+            if !settings.censorWords.isEmpty {
+                t = TextCleaner.censor(t, words: settings.censorWords, style: settings.censorStyle)
+            }
+            if settings.capitalizeI { t = TextCleaner.capitalizeI(t) }
+            if settings.smartPunctuation { t = TextCleaner.smartPunctuation(t) }
+            if settings.autoCapSentences { t = TextCleaner.capitalizeSentences(t) }
+            if settings.ensureEndPunctuation { t = TextCleaner.ensureEndPunctuation(t) }
+        }
+        return t
+    }
+
+    static let commandReference = """
+    new line · new paragraph · scratch that
+    bullet point · em dash · open/close paren · open/close quote · tab key
+    period · comma · question mark · exclamation point (Spoken punctuation)
+    today's date · current time · degree sign · ellipsis · copyright symbol
+    trademark symbol · right arrow · asterisk · hashtag · at sign
+    percent sign · ampersand
+    smiley face · winky face · heart emoji · fire emoji · thumbs up
+    rocket emoji · check mark · shrug emoji
+    """
+
+    private var replacementsFooter: String {
+        let total = settings.replacements.count
+        let enabled = settings.replacements.filter(\.enabled).count
+        let shown = replSearch.isEmpty ? total : settings.replacements.filter {
+            $0.phrase.localizedCaseInsensitiveContains(replSearch)
+                || $0.replacement.localizedCaseInsensitiveContains(replSearch)
+        }.count
+        return "\(shown) of \(total) shown · \(enabled) enabled"
     }
 
     private func importDictionary() {
@@ -1538,6 +2337,7 @@ struct DictionaryPane: View {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url,
               let content = try? String(contentsOf: url, encoding: .utf8) else { return }
+        if settings.importReplaces { settings.replacements.removeAll() }
         var added = 0
         for cols in Self.parseCSV(content) {
             guard cols.count >= 2 else { continue }
@@ -1592,8 +2392,8 @@ struct DictionaryPane: View {
              subtitle: "Teach Murmur your words, names, and shortcuts.") {
             SectionLabel(text: "Voice commands")
             CardGroup {
-                PRow(title: "“New line” and “new paragraph”",
-                     subtitle: "Say them to insert line breaks while dictating") {
+                PRow(title: "“New line”, “new paragraph”, “scratch that”",
+                     subtitle: "Line breaks, symbols, and emoji — “scratch that” restarts the sentence") {
                     Toggle("", isOn: $settings.voiceCommandsEnabled)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
@@ -1601,6 +2401,23 @@ struct DictionaryPane: View {
 
             SectionLabel(text: "Replacements")
                 .padding(.top, 6)
+            if settings.replacements.count > 5 {
+                HStack(spacing: 7) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(p.subtext)
+                    TextField("Filter replacements", text: $replSearch)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(p.text)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(p.card)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(p.border, lineWidth: 1))
+            }
             CardGroup {
                 if settings.replacements.isEmpty {
                     Text("No replacements yet — add a spoken phrase and what it should type.")
@@ -1610,6 +2427,9 @@ struct DictionaryPane: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     ForEach($settings.replacements) { $item in
+                        if replSearch.isEmpty
+                            || item.phrase.localizedCaseInsensitiveContains(replSearch)
+                            || item.replacement.localizedCaseInsensitiveContains(replSearch) {
                         if item.id != settings.replacements.first?.id { RowDivider() }
                         HStack(spacing: 10) {
                             Toggle("", isOn: $item.enabled)
@@ -1638,38 +2458,141 @@ struct DictionaryPane: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
+                        }
                     }
                 }
                 RowDivider()
                 HStack(spacing: 14) {
                     Button {
                         settings.replacements.append(Replacement(phrase: "", replacement: ""))
+                        if settings.autoSortReplacements { sortReplacements() }
                     } label: {
                         Label("Add Replacement", systemImage: "plus")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(settings.accentColor)
                     }
                     .buttonStyle(.borderless)
+                    Button {
+                        let clip = NSPasteboard.general.string(forType: .string) ?? ""
+                        settings.replacements.append(Replacement(phrase: "", replacement: clip))
+                    } label: {
+                        Label("From Clipboard", systemImage: "doc.on.clipboard")
+                            .font(.system(size: 11))
+                            .foregroundStyle(p.subtext)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("New replacement with the clipboard as its text")
                     Spacer()
-                    Button("A→Z") {
-                        settings.replacements.sort {
-                            $0.phrase.localizedCaseInsensitiveCompare($1.phrase) == .orderedAscending
+                    Menu("Sort") {
+                        Button("A → Z") { sortReplacements() }
+                        Button("Longest phrase first") {
+                            settings.replacements.sort { $0.phrase.count > $1.phrase.count }
                         }
                     }
-                    .buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(p.subtext)
-                    Button("Export CSV") { exportDictionary() }
-                        .buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(p.subtext)
+                    .menuStyle(.borderlessButton).font(.system(size: 11)).fixedSize()
+                    Menu("Enable") {
+                        Button("Enable All") {
+                            for i in settings.replacements.indices { settings.replacements[i].enabled = true }
+                        }
+                        Button("Disable All") {
+                            for i in settings.replacements.indices { settings.replacements[i].enabled = false }
+                        }
+                    }
+                    .menuStyle(.borderlessButton).font(.system(size: 11)).fixedSize()
+                    Menu("Export") {
+                        Button("CSV…") { exportDictionary() }
+                        Button("CSV (enabled only)…") { exportDictionary(enabledOnly: true) }
+                        Button("JSON…") { exportDictionaryJSON() }
+                    }
+                    .menuStyle(.borderlessButton).font(.system(size: 11)).fixedSize()
                     Button("Import CSV") { importDictionary() }
                         .buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(p.subtext)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                RowDivider()
+                Text(replacementsFooter)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(p.subtext)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
             }
             CardGroup {
+                PRow(title: "Apply replacements",
+                     subtitle: "Master switch — off leaves your list intact but unused") {
+                    Toggle("", isOn: $settings.replacementsEnabled)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Case-sensitive matching",
                      subtitle: "Off = “My Email” matches “my email”") {
                     Toggle("", isOn: $settings.caseSensitiveReplacements)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Preserve spoken capitalization",
+                     subtitle: "Spoken “My email” capitalizes the replacement too") {
+                    Toggle("", isOn: $settings.preserveCaseReplacements)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Match inside words",
+                     subtitle: "Off requires whole-word matches (recommended)") {
+                    Toggle("", isOn: $settings.matchInsideWords)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Import replaces existing",
+                     subtitle: "On = CSV import wipes the list first; off merges") {
+                    Toggle("", isOn: $settings.importReplaces)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Keep list alphabetized",
+                     subtitle: "Re-sorts automatically as you add") {
+                    Toggle("", isOn: $settings.autoSortReplacements)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                        .onChange(of: settings.autoSortReplacements) { _, on in
+                            if on { sortReplacements() }
+                        }
+                }
+                RowDivider()
+                PRow(title: "Emoji voice commands",
+                     subtitle: "“fire emoji”, “thumbs up”, “smiley face”…") {
+                    Toggle("", isOn: $settings.emojiCommands)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Censor style") {
+                    Picker("", selection: $settings.censorStyle) {
+                        ForEach(CensorStyle.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 220)
+                }
+                RowDivider()
+                PRow(title: "{date} format",
+                     subtitle: "Also used for the “today's date” voice command") {
+                    Picker("", selection: $settings.dateStyleChoice) {
+                        ForEach(DateStyleChoice.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.menu).labelsHidden().fixedSize()
+                }
+            }
+
+            SectionLabel(text: "Vocabulary")
+                .padding(.top, 6)
+            CardGroup {
+                PRow(title: "Recognition hints",
+                     subtitle: "Comma-separated names and jargon — no replacement, just better recognition") {
+                    TextField("Anthropic, Fable, Souza…", text: Binding(
+                        get: { settings.vocabWords.joined(separator: ", ") },
+                        set: { settings.vocabWords = $0.components(separatedBy: ",")
+                            .map { $0.trimmingCharacters(in: .whitespaces) }
+                            .filter { !$0.isEmpty } }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .frame(width: 240)
                 }
             }
 
@@ -1680,17 +2603,47 @@ struct DictionaryPane: View {
                     TextField("Type a phrase to test commands + replacements…", text: $testInput)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 12))
+                    HStack {
+                        Toggle("Full pipeline", isOn: $fullPipelineTest)
+                            .font(.system(size: 11))
+                            .foregroundStyle(p.subtext)
+                            .controlSize(.small)
+                            .help("Also runs fillers, capitalization, punctuation, numbers, and censoring")
+                        Spacer()
+                        if !testInput.isEmpty {
+                            Button("Copy Result") {
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setString(testResult, forType: .string)
+                            }
+                            .controlSize(.small)
+                        }
+                    }
                     if !testInput.isEmpty {
-                        Text(TextCleaner.applyReplacements(
-                                settings.voiceCommandsEnabled
-                                    ? TextCleaner.applyCommands(testInput) : testInput,
-                                settings.replacements))
+                        Text(testResult)
                             .font(.system(size: 12))
                             .foregroundStyle(settings.accentColor)
                             .textSelection(.enabled)
                     }
                 }
                 .padding(14)
+            }
+
+            CardGroup {
+                DisclosureGroup {
+                    Text(Self.commandReference)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(p.subtext)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
+                } label: {
+                    Text("All voice commands")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(p.text)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
             Text("Say the phrase while dictating and Murmur types the replacement. These phrases are also sent to the speech engine as vocabulary hints, so unusual names get recognized more reliably.")
                 .font(.system(size: 11))
@@ -1703,10 +2656,29 @@ struct DictionaryPane: View {
             CardGroup {
                 PRow(title: "Words to strip",
                      subtitle: "Comma-separated — removed when “Remove filler words” is on") {
-                    TextField("um, uh, like…", text: Binding(
-                        get: { settings.fillerWords.joined(separator: ", ") },
-                        set: { settings.fillerWords = $0.components(separatedBy: ",")
-                            .map { $0.trimmingCharacters(in: .whitespaces) } }
+                    HStack(spacing: 6) {
+                        TextField("um, uh, like…", text: Binding(
+                            get: { settings.fillerWords.joined(separator: ", ") },
+                            set: { settings.fillerWords = $0.components(separatedBy: ",")
+                                .map { $0.trimmingCharacters(in: .whitespaces) } }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                        .frame(width: 240)
+                        Button("Reset") {
+                            settings.fillerWords = ["um", "uh", "uhm", "erm", "er", "you know like"]
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Censor words",
+                     subtitle: "Comma-separated — typed as d*** instead of the word") {
+                    TextField("none", text: Binding(
+                        get: { settings.censorWords.joined(separator: ", ") },
+                        set: { settings.censorWords = $0.components(separatedBy: ",")
+                            .map { $0.trimmingCharacters(in: .whitespaces) }
+                            .filter { !$0.isEmpty } }
                     ))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
@@ -1744,6 +2716,15 @@ struct DictionaryPane: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .frame(width: 110)
+                            Picker("", selection: $rule.polish) {
+                                Text("Polish: Auto").tag(Bool?.none)
+                                Text("Polish: On").tag(Bool?.some(true))
+                                Text("Polish: Off").tag(Bool?.some(false))
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 110)
+                            .help("Override AI polish when dictating into this app")
                             Spacer()
                             Button {
                                 settings.appRules.removeAll { $0.id == rule.id }
@@ -1856,6 +2837,13 @@ struct AppearancePane: View {
             SectionLabel(text: "Accent")
                 .padding(.top, 6)
             CardGroup {
+                PRow(title: "Use system accent",
+                     subtitle: "Follow the accent from System Settings ▸ Appearance") {
+                    Toggle("", isOn: $settings.useSystemAccent)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                if !settings.useSystemAccent {
+                RowDivider()
                 HStack(alignment: .center, spacing: 24) {
                     ColorWheel(hue: $settings.accentHue, sat: $settings.accentSat, size: 148)
                     VStack(alignment: .leading, spacing: 12) {
@@ -1890,6 +2878,7 @@ struct AppearancePane: View {
                     Spacer()
                 }
                 .padding(16)
+                }
             }
 
             SectionLabel(text: "Pill")
@@ -1923,6 +2912,30 @@ struct AppearancePane: View {
                      subtitle: "Ink-colored bars instead of the accent gradient") {
                     Toggle("", isOn: $settings.waveMonochrome)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Bar width") {
+                    Slider(value: $settings.barWidth, in: 2...5)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Bar spacing") {
+                    Slider(value: $settings.barSpacing, in: 1.5...5)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Square bars",
+                     subtitle: "Hard-edged waveform bars") {
+                    Toggle("", isOn: $settings.squareBars)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Status indicator",
+                     subtitle: "What shows while listening") {
+                    Picker("", selection: $settings.statusDotStyle) {
+                        ForEach(StatusDotStyle.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 180)
                 }
                 RowDivider()
                 PRow(title: "Background opacity") {
@@ -2020,10 +3033,139 @@ struct AppearancePane: View {
                     .pickerStyle(.segmented).labelsHidden().frame(width: 200)
                 }
                 RowDivider()
+                PRow(title: "Idle dot opacity") {
+                    Slider(value: $settings.idleDotOpacity, in: 0.2...1.0)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Idle dot color") {
+                    Picker("", selection: $settings.idleDotColor) {
+                        ForEach(IdleDotColor.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 140)
+                }
+                RowDivider()
+                PRow(title: "Idle dot position",
+                     subtitle: "Own alignment, separate from the pill") {
+                    Picker("", selection: $settings.idleDotAlignment) {
+                        ForEach(PillAlignment.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                }
+                RowDivider()
                 PRow(title: "Show elapsed timer",
                      subtitle: "Running mm:ss while you dictate") {
                     Toggle("", isOn: $settings.showPillTimer)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Text size") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.pillTextSize, in: 12...18, step: 1)
+                            .frame(width: 130).controlSize(.small)
+                        Text("\(Int(settings.pillTextSize))pt")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(p.subtext)
+                            .frame(width: 32, alignment: .trailing)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Text weight") {
+                    Picker("", selection: $settings.pillFontWeight) {
+                        ForEach(PillFontWeight.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 230)
+                }
+                RowDivider()
+                PRow(title: "Text color",
+                     subtitle: "Auto follows the pill theme") {
+                    Picker("", selection: $settings.pillTextColor) {
+                        ForEach(PillTextColor.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 180)
+                }
+                RowDivider()
+                PRow(title: "UPPERCASE display",
+                     subtitle: "Pill text only — what's typed is untouched") {
+                    Toggle("", isOn: $settings.uppercasePill)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Timer format") {
+                    Picker("", selection: $settings.timerFormat) {
+                        ForEach(TimerFormat.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 140)
+                }
+                RowDivider()
+                PRow(title: "Custom background",
+                     subtitle: "Hex color for the classic pill — empty = default") {
+                    TextField("#1A1A2E", text: $settings.pillBgHex)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(width: 100)
+                }
+                RowDivider()
+                PRow(title: "Shadow strength") {
+                    Slider(value: $settings.shadowStrength, in: 0...2)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Horizontal nudge",
+                     subtitle: "Shift the pill left or right of its alignment") {
+                    Slider(value: $settings.pillNudge, in: -200...200)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Entrance animation") {
+                    Picker("", selection: $settings.entranceAnim) {
+                        ForEach(EntranceAnim.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 190)
+                }
+                RowDivider()
+                PRow(title: "Linger after insert",
+                     subtitle: "How long “Inserted ✓” stays up") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.doneLinger, in: 0.5...3)
+                            .frame(width: 110).controlSize(.small)
+                        Text(String(format: "%.1fs", settings.doneLinger))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(p.subtext)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Transcript width",
+                     subtitle: "How much text shows before it scrolls") {
+                    Slider(value: $settings.transcriptWidth, in: 200...400)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Show target app icon",
+                     subtitle: "The app you're dictating into, next to the waveform") {
+                    Toggle("", isOn: $settings.showTargetIcon)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Tap pill to finish",
+                     subtitle: "Click the pill to insert — like tapping the hotkey") {
+                    Toggle("", isOn: $settings.pillClickToFinish)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Show pill while dictating",
+                     subtitle: "Off = invisible dictation, sound cues only") {
+                    Toggle("", isOn: $settings.showPillWhileRecording)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Display",
+                     subtitle: "Which screen the pill appears on") {
+                    Picker("", selection: $settings.pillScreen) {
+                        ForEach(PillScreen.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 210)
                 }
                 RowDivider()
                 PRow(title: "Reduce motion",
@@ -2071,15 +3213,49 @@ struct AppearancePane: View {
                     .labelsHidden()
                     .frame(width: 150)
                 }
+                RowDivider()
+                PRow(title: "Custom SF Symbol",
+                     subtitle: "Any symbol name overrides the icon — empty = picker above") {
+                    TextField("waveform.circle", text: $settings.menuSymbolName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(width: 150)
+                }
+            }
+
+            SectionLabel(text: "App window")
+                .padding(.top, 6)
+            CardGroup {
+                PRow(title: "Filled sidebar icons") {
+                    Toggle("", isOn: $settings.sidebarFilledIcons)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Live preview bar",
+                     subtitle: "The pill preview pinned below this pane") {
+                    Toggle("", isOn: $settings.showLivePreviewBar)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Preview sentence",
+                     subtitle: "Custom text for the preview pill") {
+                    TextField("This is what your dictation looks like", text: $settings.previewSampleText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                        .frame(width: 240)
+                }
             }
 
         }
-        pinnedPreview(p)
+        if settings.showLivePreviewBar { pinnedPreview(p) }
         }
         .onReceive(timer) { _ in
             t += 0.35
             let level = Float(0.25 + 0.55 * abs(sin(t)) * Double.random(in: 0.55...1.0))
             previewState.pushLevel(level)
+            let sample = settings.previewSampleText.trimmingCharacters(in: .whitespaces)
+            let wanted = sample.isEmpty ? "This is what your dictation looks like" : sample
+            if previewState.text != wanted { previewState.text = wanted }
         }
     }
 
@@ -2179,31 +3355,43 @@ struct AppearancePane: View {
 struct StatsPane: View {
     @ObservedObject var settings: AppSettings
     @Environment(\.colorScheme) private var scheme
+    @State private var period = 0   // 0=all time 1=30 days 2=7 days
+    @State private var selectedBadge: Achievement?
+
+    /// Days in the selected period, or nil for all-time.
+    private var periodDays: Int? { period == 1 ? 30 : (period == 2 ? 7 : nil) }
+
+    private func wordsInPeriod() -> Int {
+        guard let days = periodDays else { return settings.totalWords }
+        let cal = Calendar.current
+        return (0..<days).reduce(0) { total, offset in
+            let day = cal.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            return total + (settings.dailyWords[AppSettings.dayKey(day)] ?? 0)
+        }
+    }
+
+    private func periodDayCounts() -> [Int] {
+        let cal = Calendar.current
+        let days = periodDays ?? settings.dailyWords.count
+        guard periodDays != nil else { return settings.dailyWords.values.map { $0 } }
+        return (0..<days).map { offset in
+            let day = cal.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            return settings.dailyWords[AppSettings.dayKey(day)] ?? 0
+        }
+    }
 
     var body: some View {
         let p = Palette.of(scheme)
-        let bestDay = settings.dailyWords.values.max() ?? 0
-        let avg = settings.totalSessions > 0 ? settings.totalWords / settings.totalSessions : 0
-        let earnedCount = settings.earned.count
         Pane(title: "Stats",
              subtitle: "Your dictation life in numbers.") {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
-                      spacing: 10) {
-                statTile("Words", settings.totalWords.formatted())
-                statTile("Sessions", settings.totalSessions.formatted())
-                statTile("Avg / session", "\(avg)")
-                statTile("Best day", "\(bestDay)")
-                statTile("Streak", "\(settings.streak())d")
-                statTile("Longest streak", "\(settings.maxStreak)d")
-                statTile("Min saved", String(format: "%.0f", settings.minutesSaved))
-                statTile("Badges", "\(earnedCount)/\(Achievement.all.count)")
-                statTile("This week", "\(settings.wordsInWeek(endingDaysAgo: 0))")
-                statTile("Last week", "\(settings.wordsInWeek(endingDaysAgo: 7))")
-                statTile("Active days", "\(settings.activeDays)")
-                statTile("Avg / active day", "\(settings.avgWordsPerActiveDay)")
-                statTile("Speaking WPM", settings.wordsPerMinute > 0 ? "\(settings.wordsPerMinute)" : "—")
-                statTile("Time spoken", speakTimeLabel)
+            Picker("", selection: $period) {
+                Text("All Time").tag(0)
+                Text("30 Days").tag(1)
+                Text("7 Days").tag(2)
             }
+            .pickerStyle(.segmented).labelsHidden()
+
+            tilesGrid
 
             if let ms = settings.nextMilestone() {
                 Text("Next badge: \(ms.name) — \(ms.remaining.formatted()) words to go (≈\(ms.days) active days at your pace)")
@@ -2212,12 +3400,132 @@ struct StatsPane: View {
                     .padding(.horizontal, 2)
             }
 
-            SectionLabel(text: "Last 30 days")
-                .padding(.top, 6)
-            CardGroup {
+            goalsSection(p)
+            chartSection(p)
+            heatmapSection(p)
+            hourSection(p)
+            appsSection(p)
+            badgesSection(p)
+
+            HStack(spacing: 10) {
+                Menu("Copy") {
+                    Button("Summary") { copyStatsSummary() }
+                    Button("Markdown Table") { copyStatsMarkdown() }
+                }
+                .menuStyle(.borderlessButton).font(.system(size: 12)).fixedSize()
+                Button("Save Summary…") { saveStatsSummary() }
+                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
+                Menu("Export CSV") {
+                    Button("Activity (30 days)…") { exportActivityCSV() }
+                    Button("Achievements…") { exportAchievementsCSV() }
+                }
+                .menuStyle(.borderlessButton).font(.system(size: 12)).fixedSize()
+                Spacer()
+                Button("Reset Badges…") { confirmResetBadges() }
+                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
+                Button("Reset Stats…") { confirmResetStats() }
+                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(.red.opacity(0.8))
+            }
+        }
+    }
+
+    private var tilesGrid: some View {
+        let counts = periodDayCounts()
+        let active = counts.filter { $0 > 0 }.count
+        let words = wordsInPeriod()
+        let avgActive = active > 0 ? words / active : 0
+        let best = counts.max() ?? 0
+        let avgSess = settings.totalSessions > 0 ? settings.totalWords / settings.totalSessions : 0
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+                         spacing: 10) {
+            statTile("Words", words.formatted())
+            statTile("Sessions", settings.totalSessions.formatted())
+            statTile("Avg / session", "\(avgSess)")
+            statTile("Best day", "\(best)")
+            statTile("Best day was", bestDayDateLabel)
+            statTile("Streak", "\(settings.streak())d")
+            statTile("Longest streak", "\(settings.maxStreak)d")
+            statTile("Goal streak", settings.dailyGoal > 0 ? "\(settings.goalStreak())d" : "—")
+            statTile("Min saved", String(format: "%.0f", settings.minutesSaved),
+                     help: "Assumes ~40 wpm typing vs ~150 wpm speaking")
+            statTile("Badges", "\(settings.earned.count)/\(Achievement.all.count)")
+            statTile("This week", "\(settings.wordsInWeek(endingDaysAgo: 0))")
+            statTile("Last week", "\(settings.wordsInWeek(endingDaysAgo: 7))")
+            statTile("Active days", "\(active)")
+            statTile("Avg / active day", "\(avgActive)")
+            statTile("Speaking WPM", settings.wordsPerMinute > 0 ? "\(settings.wordsPerMinute)" : "—")
+            statTile("Time spoken", speakTimeLabel)
+            statTile("Characters", settings.totalChars.formatted())
+            statTile("Longest session", settings.maxSessionWords > 0 ? "\(settings.maxSessionWords)w" : "—")
+            statTile("Sessions today", "\(settings.dailySessions[AppSettings.dayKey(Date())] ?? 0)")
+            statTile("Commands used", "\(settings.commandsUsed)")
+            statTile("Polished", "\(settings.polishedCount)")
+            statTile("Avg session", avgSessionLabel)
+        }
+    }
+
+    private var bestDayDateLabel: String {
+        guard let key = settings.bestDayKey, (settings.dailyWords[key] ?? 0) > 0 else { return "—" }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+        guard let date = df.date(from: key) else { return "—" }
+        let out = DateFormatter(); out.dateFormat = "MMM d"
+        return out.string(from: date)
+    }
+
+    @ViewBuilder
+    private func goalsSection(_ p: Palette) -> some View {
+        SectionLabel(text: "Goals")
+            .padding(.top, 6)
+        CardGroup {
+            PRow(title: "Weekly word goal",
+                 subtitle: "Separate from the daily goal") {
+                Picker("", selection: $settings.weeklyGoal) {
+                    Text("Off").tag(0)
+                    ForEach([1000, 2500, 5000, 10000], id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.menu).labelsHidden().frame(width: 90)
+            }
+            if settings.weeklyGoal > 0 {
+                RowDivider()
+                let done = settings.wordsInWeek(endingDaysAgo: 0)
+                let frac = min(1, Double(done) / Double(settings.weeklyGoal))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("\(done.formatted()) / \(settings.weeklyGoal.formatted()) words this week")
+                        .font(.system(size: 11))
+                        .foregroundStyle(p.subtext)
+                    Capsule().fill(p.border).frame(height: 5)
+                        .overlay(alignment: .leading) {
+                            GeometryReader { geo in
+                                Capsule().fill(settings.accentColor)
+                                    .frame(width: max(frac > 0 ? 5 : 0, geo.size.width * frac))
+                            }
+                        }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
+            if settings.maxStreak > 0, settings.streak() < settings.maxStreak {
+                RowDivider()
+                Text("🔥 \(settings.streak())d streak — \(settings.maxStreak - settings.streak()) more to tie your record")
+                    .font(.system(size: 11))
+                    .foregroundStyle(p.subtext)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chartSection(_ p: Palette) -> some View {
+        SectionLabel(text: "Last 30 days")
+            .padding(.top, 6)
+        CardGroup {
+            let days = settings.monthActivity()
+            let maxC = max(days.map(\.count).max() ?? 1, 1)
+            let nonzero = days.map(\.count).filter { $0 > 0 }
+            let avg = nonzero.isEmpty ? 0 : nonzero.reduce(0, +) / nonzero.count
+            ZStack(alignment: .bottom) {
                 HStack(alignment: .bottom, spacing: 4) {
-                    let days = settings.monthActivity()
-                    let maxC = max(days.map(\.count).max() ?? 1, 1)
                     ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                         RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                             .fill(day.count > 0 ? settings.accentColor : p.border)
@@ -2227,41 +3535,155 @@ struct StatsPane: View {
                             .help("\(day.count) \(day.count == 1 ? "word" : "words") — \(day.date)")
                     }
                 }
-                .frame(height: 60, alignment: .bottom)
-                .padding(14)
+                if avg > 0 {
+                    Rectangle()
+                        .fill(p.subtext.opacity(0.55))
+                        .frame(height: 1)
+                        .offset(y: -max(5, 52 * CGFloat(avg) / CGFloat(maxC)))
+                        .help("Average active day: \(avg) words")
+                }
             }
+            .frame(height: 60, alignment: .bottom)
+            .padding(14)
+        }
+    }
 
-            SectionLabel(text: "Achievements")
-                .padding(.top, 10)
-            let progress = Double(earnedCount) / Double(Achievement.all.count)
-            Capsule().fill(p.border)
-                .frame(height: 5)
-                .overlay(alignment: .leading) {
-                    GeometryReader { geo in
-                        Capsule().fill(settings.accentColor)
-                            .frame(width: max(progress > 0 ? 5 : 0, geo.size.width * progress))
+    @ViewBuilder
+    private func heatmapSection(_ p: Palette) -> some View {
+        SectionLabel(text: "Heatmap")
+            .padding(.top, 6)
+        CardGroup {
+            let days = settings.monthActivity()
+            let maxC = max(days.map(\.count).max() ?? 1, 1)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 10),
+                      spacing: 4) {
+                ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(day.count > 0
+                              ? settings.accentColor.opacity(0.25 + 0.75 * Double(day.count) / Double(maxC))
+                              : p.border.opacity(0.6))
+                        .frame(height: 16)
+                        .help("\(day.count) \(day.count == 1 ? "word" : "words") — \(day.date)")
+                }
+            }
+            .padding(14)
+        }
+    }
+
+    @ViewBuilder
+    private func hourSection(_ p: Palette) -> some View {
+        SectionLabel(text: "When you dictate")
+            .padding(.top, 6)
+        CardGroup {
+            let maxC = max(settings.hourCounts.values.max() ?? 1, 1)
+            VStack(spacing: 4) {
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        let c = settings.hourCounts["\(hour)"] ?? 0
+                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                            .fill(c > 0 ? settings.accentColor : p.border)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: c > 0 ? max(4, 40 * CGFloat(c) / CGFloat(maxC)) : 2)
+                            .help("\(c) session\(c == 1 ? "" : "s") at \(hour):00")
                     }
                 }
-                .padding(.horizontal, 2)
+                .frame(height: 46, alignment: .bottom)
+                HStack {
+                    Text("12a").font(.system(size: 9)).foregroundStyle(p.subtext)
+                    Spacer()
+                    Text("noon").font(.system(size: 9)).foregroundStyle(p.subtext)
+                    Spacer()
+                    Text("11p").font(.system(size: 9)).foregroundStyle(p.subtext)
+                }
+            }
+            .padding(14)
+        }
+    }
+
+    @ViewBuilder
+    private func appsSection(_ p: Palette) -> some View {
+        if !settings.appWords.isEmpty {
+            SectionLabel(text: "Top apps")
+                .padding(.top, 6)
             CardGroup {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4),
-                          spacing: 14) {
-                    ForEach(Achievement.all) { a in
-                        badge(a)
+                let top = settings.appWords.sorted { $0.value > $1.value }.prefix(5)
+                let maxW = max(top.first?.value ?? 1, 1)
+                VStack(spacing: 8) {
+                    ForEach(Array(top), id: \.key) { app, words in
+                        HStack(spacing: 10) {
+                            Text(app)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(p.text)
+                                .frame(width: 110, alignment: .leading)
+                                .lineLimit(1)
+                            GeometryReader { geo in
+                                Capsule().fill(settings.accentColor.opacity(0.75))
+                                    .frame(width: max(4, geo.size.width * CGFloat(words) / CGFloat(maxW)))
+                            }
+                            .frame(height: 7)
+                            Text("\(words.formatted())w")
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(p.subtext)
+                                .frame(width: 62, alignment: .trailing)
+                        }
                     }
                 }
                 .padding(14)
             }
+        }
+    }
 
-            HStack {
-                Button("Copy Summary") { copyStatsSummary() }
-                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
-                Button("Save Summary…") { saveStatsSummary() }
-                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
-                Spacer()
-                Button("Reset Stats…") { confirmResetStats() }
-                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(.red.opacity(0.8))
+    @ViewBuilder
+    private func badgesSection(_ p: Palette) -> some View {
+        SectionLabel(text: "Achievements")
+            .padding(.top, 10)
+        let progress = Double(settings.earned.count) / Double(Achievement.all.count)
+        Capsule().fill(p.border)
+            .frame(height: 5)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Capsule().fill(settings.accentColor)
+                        .frame(width: max(progress > 0 ? 5 : 0, geo.size.width * progress))
+                }
             }
+            .padding(.horizontal, 2)
+        let locked = Achievement.all.filter { settings.earned[$0.id] == nil }.prefix(3)
+        if !locked.isEmpty {
+            Text("Within reach: " + locked.map { "\($0.name) (\($0.desc.lowercased()))" }
+                .joined(separator: " · "))
+                .font(.system(size: 11))
+                .foregroundStyle(p.subtext)
+                .padding(.horizontal, 2)
+        }
+        CardGroup {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4),
+                      spacing: 14) {
+                ForEach(Achievement.all) { a in
+                    badge(a)
+                        .onTapGesture { selectedBadge = a }
+                }
+            }
+            .padding(14)
+        }
+        .popover(item: $selectedBadge) { a in
+            VStack(alignment: .leading, spacing: 6) {
+                Label(a.name, systemImage: a.symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(a.desc)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                if let date = settings.earned[a.id] {
+                    Text("Earned \(date.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Not earned yet")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .frame(width: 240, alignment: .leading)
         }
     }
 
@@ -2269,6 +3691,70 @@ struct StatsPane: View {
         let secs = Int(settings.totalSpeakSeconds)
         if secs < 60 { return "\(secs)s" }
         return "\(secs / 60)m \(secs % 60)s"
+    }
+
+    private var avgSessionLabel: String {
+        guard settings.totalSessions > 0, settings.totalSpeakSeconds > 0 else { return "—" }
+        return "\(Int(settings.totalSpeakSeconds) / settings.totalSessions)s"
+    }
+
+    private func copyStatsMarkdown() {
+        let s = settings
+        let text = """
+        | Stat | Value |
+        |---|---|
+        | Words | \(s.totalWords.formatted()) |
+        | Sessions | \(s.totalSessions) |
+        | Characters | \(s.totalChars.formatted()) |
+        | Streak | \(s.streak())d (best \(s.maxStreak)d) |
+        | This week | \(s.wordsInWeek(endingDaysAgo: 0)) |
+        | Last week | \(s.wordsInWeek(endingDaysAgo: 7)) |
+        | Speaking WPM | \(s.wordsPerMinute) |
+        | Longest session | \(s.maxSessionWords) words |
+        | Time saved | ~\(Int(s.minutesSaved)) min |
+        | Badges | \(s.earned.count)/\(Achievement.all.count) |
+        """
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+    }
+
+    private func exportAchievementsCSV() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Murmur Achievements.csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+        let rows = Achievement.all.map { a -> String in
+            let earned = settings.earned[a.id].map { df.string(from: $0) } ?? ""
+            return "\"\(a.name)\",\"\(a.desc)\",\(earned)"
+        }
+        try? ("badge,description,earned\n" + rows.joined(separator: "\n") + "\n")
+            .write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func confirmResetBadges() {
+        let alert = NSAlert()
+        alert.messageText = "Reset all badges?"
+        alert.informativeText = "All \(settings.earned.count) earned achievements go back to locked. Stats are kept."
+        alert.addButton(withTitle: "Reset Badges")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn { settings.earned = [:] }
+    }
+
+    /// Writes the trailing 30 days of activity as date,words CSV.
+    private func exportActivityCSV() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Murmur Activity.csv"
+        panel.title = "Export Activity"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let cal = Calendar.current
+        let rows = (0..<30).reversed().map { offset -> String in
+            let day = cal.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            let key = AppSettings.dayKey(day)
+            return "\(key),\(settings.dailyWords[key] ?? 0)"
+        }
+        try? ("date,words\n" + rows.joined(separator: "\n") + "\n")
+            .write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func statsSummary() -> String {
@@ -2306,7 +3792,7 @@ struct StatsPane: View {
         if alert.runModal() == .alertFirstButtonReturn { settings.resetStats() }
     }
 
-    private func statTile(_ label: String, _ value: String) -> some View {
+    private func statTile(_ label: String, _ value: String, help: String? = nil) -> some View {
         let p = Palette.of(scheme)
         return CardGroup {
             VStack(alignment: .leading, spacing: 2) {
@@ -2322,6 +3808,7 @@ struct StatsPane: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .help(help ?? "")
     }
 
     private func badge(_ a: Achievement) -> some View {
@@ -2360,23 +3847,48 @@ struct HistoryPane: View {
     @ObservedObject var settings: AppSettings
     @Environment(\.colorScheme) private var scheme
     @State private var query = ""
-    @State private var filter = 0   // 0=all 1=pinned 2=today
+    @State private var filter = 0   // 0=all 1=pinned 2=today 3=yesterday 4=week
+    @State private var lengthFilter = 0   // 0=any 1=<10w 2=10–50w 3=>50w
+    @State private var appFilter: String?
     @State private var sort: HistorySort = .newest
 
     private var filtered: [HistoryItem] {
+        let cal = Calendar.current
         var base = query.isEmpty
             ? settings.history
             : settings.history.filter { $0.text.localizedCaseInsensitiveContains(query) }
-        if filter == 1 { base = base.filter(\.pinned) }
-        if filter == 2 { base = base.filter { Calendar.current.isDateInToday($0.date) } }
+        switch filter {
+        case 1: base = base.filter(\.pinned)
+        case 2: base = base.filter { cal.isDateInToday($0.date) }
+        case 3: base = base.filter { cal.isDateInYesterday($0.date) }
+        case 4:
+            let cutoff = cal.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+            base = base.filter { $0.date >= cutoff }
+        default: break
+        }
+        switch lengthFilter {
+        case 1: base = base.filter { $0.text.split(whereSeparator: \.isWhitespace).count < 10 }
+        case 2: base = base.filter { (10...50).contains($0.text.split(whereSeparator: \.isWhitespace).count) }
+        case 3: base = base.filter { $0.text.split(whereSeparator: \.isWhitespace).count > 50 }
+        default: break
+        }
+        if let appFilter {
+            base = base.filter { $0.app == appFilter }
+        }
         return base.sorted {
-            if $0.pinned != $1.pinned { return $0.pinned }
+            if settings.pinnedFirst, $0.pinned != $1.pinned { return $0.pinned }
             switch sort {
             case .newest: return $0.date > $1.date
             case .oldest: return $0.date < $1.date
             case .longest: return $0.text.count > $1.text.count
+            case .shortest: return $0.text.count < $1.text.count
             }
         }
+    }
+
+    /// Distinct app names present in history, for the app filter menu.
+    private var historyApps: [String] {
+        Array(Set(settings.history.compactMap(\.app))).sorted()
     }
 
     private var totalWordsShown: Int {
@@ -2420,18 +3932,38 @@ struct HistoryPane: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(p.border, lineWidth: 1)
                 )
+                // Two rows so the controls never outgrow the pane and
+                // stretch the window.
+                Picker("", selection: $filter) {
+                    Text("All").tag(0)
+                    Text("Pinned").tag(1)
+                    Text("Today").tag(2)
+                    Text("Yesterday").tag(3)
+                    Text("Week").tag(4)
+                }
+                .pickerStyle(.segmented).labelsHidden()
                 HStack(spacing: 8) {
-                    Picker("", selection: $filter) {
-                        Text("All").tag(0)
-                        Text("Pinned").tag(1)
-                        Text("Today").tag(2)
+                    Picker("", selection: $lengthFilter) {
+                        Text("Any length").tag(0)
+                        Text("< 10 words").tag(1)
+                        Text("10–50 words").tag(2)
+                        Text("> 50 words").tag(3)
                     }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 190)
+                    .pickerStyle(.menu).labelsHidden().frame(maxWidth: 130)
+                    if !historyApps.isEmpty {
+                        Picker("", selection: $appFilter) {
+                            Text("All apps").tag(String?.none)
+                            ForEach(historyApps, id: \.self) { app in
+                                Text(app).tag(String?.some(app))
+                            }
+                        }
+                        .pickerStyle(.menu).labelsHidden().frame(maxWidth: 130)
+                    }
                     Spacer()
                     Picker("", selection: $sort) {
                         ForEach(HistorySort.allCases) { Text($0.label).tag($0) }
                     }
-                    .pickerStyle(.menu).labelsHidden().fixedSize()
+                    .pickerStyle(.menu).labelsHidden().frame(maxWidth: 110)
                 }
             }
             if settings.history.isEmpty {
@@ -2459,12 +3991,30 @@ struct HistoryPane: View {
                         .padding(.vertical, 28)
                 }
             } else {
-                CardGroup {
-                    ForEach(Array(filtered.enumerated()), id: \.element.id) { i, item in
-                        if i > 0 { RowDivider() }
-                        HistoryRow(item: item, settings: settings)
+                if sort == .newest {
+                    // Grouped by day, newest first.
+                    ForEach(groupedByDay, id: \.label) { group in
+                        SectionLabel(text: group.label)
+                        CardGroup {
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { i, item in
+                                if i > 0 { RowDivider() }
+                                HistoryRow(item: item, settings: settings)
+                            }
+                        }
+                    }
+                } else {
+                    CardGroup {
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { i, item in
+                            if i > 0 { RowDivider() }
+                            HistoryRow(item: item, settings: settings)
+                        }
                     }
                 }
+                Text(String(format: "Average %.0f words per transcript",
+                            filtered.isEmpty ? 0 : Double(totalWordsShown) / Double(filtered.count)))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(p.subtext)
+                    .padding(.horizontal, 2)
                 HStack(spacing: 12) {
                     Picker("Keep", selection: $settings.historyLimit) {
                         ForEach([25, 50, 100, 200], id: \.self) { Text("\($0)").tag($0) }
@@ -2477,24 +4027,114 @@ struct HistoryPane: View {
                     }
                     .pickerStyle(.menu).font(.system(size: 12)).fixedSize()
                     Menu("Export") {
-                        Button("Export All…") { exportHistory(pinnedOnly: false) }
-                        Button("Export Pinned…") { exportHistory(pinnedOnly: true) }
+                        Button("Markdown (all)…") { exportHistory(pinnedOnly: false) }
+                        Button("Markdown (pinned)…") { exportHistory(pinnedOnly: true) }
+                        Button("Plain text…") { exportHistoryTXT() }
+                        Button("JSON…") { exportHistoryJSON() }
                     }
                     .font(.system(size: 12)).fixedSize()
-                    Button("Copy All") {
-                        let pb = NSPasteboard.general
-                        pb.clearContents()
-                        pb.setString(filtered.map(\.text).joined(separator: "\n\n"), forType: .string)
+                    Menu("Copy") {
+                        Button("As Paragraphs") {
+                            copyToClipboard(filtered.map(\.text).joined(separator: "\n\n"))
+                        }
+                        Button("As Bullet List") {
+                            copyToClipboard(filtered.map { "• \($0.text)" }.joined(separator: "\n"))
+                        }
                     }
-                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
+                    .font(.system(size: 12)).fixedSize()
                     Spacer()
-                    Button("Clear History") { settings.history = settings.history.filter(\.pinned) }
-                        .buttonStyle(.borderless)
-                        .font(.system(size: 12))
-                        .foregroundStyle(p.subtext)
+                    Menu("Clear") {
+                        Button("All (keeps pinned)") { clearHistory { !$0.pinned } }
+                        Button("Older than 7 days") { clearOlderThan(days: 7) }
+                        Button("Older than 30 days") { clearOlderThan(days: 30) }
+                        if !settings.lastCleared.isEmpty {
+                            Divider()
+                            Button("Undo Last Clear (\(settings.lastCleared.count))") {
+                                settings.history = (settings.history + settings.lastCleared)
+                                    .sorted { $0.date > $1.date }
+                                settings.lastCleared = []
+                            }
+                        }
+                    }
+                    .font(.system(size: 12)).fixedSize()
+                }
+                CardGroup {
+                    PRow(title: "Pause history",
+                         subtitle: "Dictations aren't saved here — stats still count") {
+                        Toggle("", isOn: $settings.historyPaused)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Skip clipboard-only dictations",
+                         subtitle: "Don't save Dictate-to-Clipboard results") {
+                        Toggle("", isOn: $settings.excludeClipboardOnly)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Pinned always on top") {
+                        Toggle("", isOn: $settings.pinnedFirst)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
                 }
             }
         }
+    }
+
+    /// Filtered items bucketed by calendar day, newest day first.
+    private var groupedByDay: [(label: String, items: [HistoryItem])] {
+        let cal = Calendar.current
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        var groups: [(label: String, items: [HistoryItem])] = []
+        for item in filtered {
+            let label = cal.isDateInToday(item.date) ? "Today"
+                : cal.isDateInYesterday(item.date) ? "Yesterday"
+                : df.string(from: item.date)
+            if groups.last?.label == label {
+                groups[groups.count - 1].items.append(item)
+            } else {
+                groups.append((label, [item]))
+            }
+        }
+        return groups
+    }
+
+    private func copyToClipboard(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+    }
+
+    /// Removes matching unpinned items, remembering them for Undo.
+    private func clearHistory(_ shouldRemove: (HistoryItem) -> Bool) {
+        let removed = settings.history.filter { !$0.pinned && shouldRemove($0) }
+        guard !removed.isEmpty else { return }
+        settings.lastCleared = removed
+        let removedIDs = Set(removed.map(\.id))
+        settings.history.removeAll { removedIDs.contains($0.id) }
+    }
+
+    private func clearOlderThan(days: Int) {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        clearHistory { $0.date < cutoff }
+    }
+
+    private func exportHistoryTXT() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Murmur Transcripts.txt"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? (settings.history.map(\.text).joined(separator: "\n\n") + "\n")
+            .write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func exportHistoryJSON() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Murmur Transcripts.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        enc.dateEncodingStrategy = .iso8601
+        try? enc.encode(settings.history).write(to: url)
     }
 
     private func exportHistory(pinnedOnly: Bool = false) {
@@ -2557,22 +4197,33 @@ struct ActivityCard: View {
                     }
                 }
                 Spacer()
-                HStack(alignment: .bottom, spacing: 10) {
-                    ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                        VStack(spacing: 4) {
-                            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(day.count > 0
-                                      ? settings.accentColor
-                                      : p.border)
-                                .frame(width: 8,
-                                       height: day.count > 0
-                                           ? max(6, 44 * CGFloat(day.count) / CGFloat(maxCount))
-                                           : 3)
-                            Text(day.label)
-                                .font(.system(size: 9))
-                                .foregroundStyle(p.subtext)
+                ZStack(alignment: .bottom) {
+                    HStack(alignment: .bottom, spacing: 10) {
+                        ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                            VStack(spacing: 4) {
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(day.count > 0
+                                          ? settings.accentColor
+                                          : p.border)
+                                    .frame(width: 8,
+                                           height: day.count > 0
+                                               ? max(6, 44 * CGFloat(day.count) / CGFloat(maxCount))
+                                               : 3)
+                                Text(day.label)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(p.subtext)
+                            }
+                            .help("\(day.count) \(day.count == 1 ? "word" : "words") — \(day.date)")
                         }
-                        .help("\(day.count) \(day.count == 1 ? "word" : "words") — \(day.date)")
+                    }
+                    // Daily-goal marker, when the goal is within the chart's scale.
+                    if settings.dailyGoal > 0, settings.dailyGoal <= maxCount {
+                        Line()
+                            .stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            .foregroundStyle(p.subtext.opacity(0.7))
+                            .frame(height: 1)
+                            .offset(y: -(13 + max(6, 44 * CGFloat(settings.dailyGoal) / CGFloat(maxCount))))
+                            .help("Daily goal: \(settings.dailyGoal) words")
                     }
                 }
             }
@@ -2600,8 +4251,16 @@ struct HistoryRow: View {
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 4) {
+                    let words = item.text.split(whereSeparator: \.isWhitespace).count
                     Text(item.date, format: .dateTime.month().day().hour().minute())
-                    Text("· \(item.text.split(whereSeparator: \.isWhitespace).count) words")
+                    Text("· \(words) \(words == 1 ? "word" : "words")")
+                    if let secs = item.seconds, secs >= 1 {
+                        Text(String(format: "· %d:%02d", Int(secs) / 60, Int(secs) % 60))
+                    }
+                    if let app = item.app, !app.isEmpty {
+                        Text("· → \(app)")
+                            .lineLimit(1)
+                    }
                 }
                 .font(.system(size: 10.5))
                 .foregroundStyle(p.subtext)
@@ -2623,7 +4282,8 @@ struct HistoryRow: View {
                         .font(.system(size: 12.5))
                         .textSelection(.enabled)
                         .frame(maxWidth: 340, alignment: .leading)
-                    Text("\(item.date.formatted(date: .abbreviated, time: .shortened)) · \(item.text.split(whereSeparator: \.isWhitespace).count) words · \(item.text.count) characters")
+                    let words = item.text.split(whereSeparator: \.isWhitespace).count
+                    Text("\(item.date.formatted(date: .abbreviated, time: .shortened)) · \(words) words · \(item.text.count) characters · ~\(max(1, words * 60 / 200))s read")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 }
@@ -2707,6 +4367,40 @@ struct HistoryRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Copy") {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(item.text, forType: .string)
+            }
+            Button("Insert into Previous App") {
+                NSApp.hide(nil)
+                let text = item.text
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    Inserter.insert(text)
+                }
+            }
+            Button(item.pinned ? "Unpin" : "Pin") {
+                if let i = settings.history.firstIndex(where: { $0.id == item.id }) {
+                    settings.history[i].pinned.toggle()
+                }
+            }
+            Menu("Polish as…") {
+                ForEach(PolishTone.allCases.filter { $0 != .custom }) { tone in
+                    Button(tone.label) {
+                        TextCleaner.polish(item.text, tone: tone) { out in
+                            let pb = NSPasteboard.general
+                            pb.clearContents()
+                            pb.setString(out, forType: .string)
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button("Delete", role: .destructive) {
+                settings.history.removeAll { $0.id == item.id }
+            }
+        }
     }
 }
 

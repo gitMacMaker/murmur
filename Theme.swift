@@ -64,25 +64,70 @@ struct Palette {
         text: Color(red: 1.0, green: 0.88, blue: 0.96),
         subtext: Color(red: 0.78, green: 0.58, blue: 0.82)
     )
+    static let paper = Palette(
+        bg: Color(red: 0.973, green: 0.953, blue: 0.910),
+        sidebar: Color(red: 0.945, green: 0.918, blue: 0.863),
+        card: Color(red: 0.995, green: 0.988, blue: 0.965),
+        border: Color(red: 0.45, green: 0.36, blue: 0.26).opacity(0.28),
+        text: Color(red: 0.20, green: 0.16, blue: 0.11),
+        subtext: Color(red: 0.48, green: 0.42, blue: 0.34)
+    )
+    static let midnight = Palette(
+        bg: Color(red: 0.039, green: 0.055, blue: 0.118),
+        sidebar: Color(red: 0.051, green: 0.071, blue: 0.149),
+        card: Color(red: 0.075, green: 0.102, blue: 0.200),
+        border: Color(red: 0.49, green: 0.55, blue: 0.94).opacity(0.30),
+        text: Color(red: 0.902, green: 0.918, blue: 0.969),
+        subtext: Color(red: 0.545, green: 0.576, blue: 0.722)
+    )
+    static let forest = Palette(
+        bg: Color(red: 0.059, green: 0.106, blue: 0.071),
+        sidebar: Color(red: 0.071, green: 0.129, blue: 0.086),
+        card: Color(red: 0.086, green: 0.145, blue: 0.102),
+        border: Color(red: 0.44, green: 0.75, blue: 0.53).opacity(0.30),
+        text: Color(red: 0.875, green: 0.941, blue: 0.886),
+        subtext: Color(red: 0.565, green: 0.690, blue: 0.596)
+    )
+    static let candy = Palette(
+        bg: Color(red: 1.0, green: 0.941, blue: 0.965),
+        sidebar: Color(red: 1.0, green: 0.894, blue: 0.937),
+        card: .white,
+        border: Color(red: 0.949, green: 0.420, blue: 0.659).opacity(0.35),
+        text: Color(red: 0.29, green: 0.125, blue: 0.22),
+        subtext: Color(red: 0.63, green: 0.42, blue: 0.54)
+    )
 
     static func of(_ scheme: ColorScheme) -> Palette {
-        switch AppSettings.shared.skin {
+        let skin = AppSettings.shared.skin
+        if let spec = skin.spec { return spec.palette }
+        switch skin {
         case .clean, .sketch: return scheme == .dark ? .dark : .light
         case .terminal: return .terminal
         case .blueprint: return .blueprint
         case .retro: return .retro
         case .neon: return .neon
+        case .paper: return .paper
+        case .midnight: return .midnight
+        case .forest: return .forest
+        case .candy: return .candy
+        default: return scheme == .dark ? .dark : .light
         }
     }
 
     /// Stroke color for skin decorations (sketch wobble, blueprint dashes…).
     static func ink(_ scheme: ColorScheme) -> Color {
-        switch AppSettings.shared.skin {
+        let skin = AppSettings.shared.skin
+        if let spec = skin.spec { return spec.ink }
+        switch skin {
         case .terminal: return Palette.terminal.text.opacity(0.8)
         case .blueprint: return .white.opacity(0.85)
         case .retro: return .black
         case .neon: return Color(red: 1.0, green: 0.35, blue: 0.72)
-        case .clean, .sketch:
+        case .paper: return Color(red: 0.35, green: 0.27, blue: 0.18).opacity(0.8)
+        case .midnight: return Color(red: 0.55, green: 0.62, blue: 0.98)
+        case .forest: return Color(red: 0.48, green: 0.80, blue: 0.58)
+        case .candy: return Color(red: 0.949, green: 0.420, blue: 0.659)
+        default:
             return scheme == .dark ? Color.white.opacity(0.8) : Color(white: 0.22).opacity(0.85)
         }
     }
@@ -99,13 +144,19 @@ enum SketchStyle {
 
 /// App-wide font helper — each skin brings its own typeface.
 func murmurFont(_ size: CGFloat, _ weight: Font.Weight, sketch: Bool, scheme: ColorScheme) -> Font {
-    switch AppSettings.shared.skin {
+    let skin = AppSettings.shared.skin
+    if let spec = skin.spec { return spec.font(size, weight) }
+    switch skin {
     case .sketch: return .custom(SketchStyle.fontName(scheme), size: size + 1)
     case .terminal: return .custom("Menlo", size: size)
     case .blueprint: return .custom("Noteworthy", size: size + 1)
     case .retro: return .custom("Monaco", size: size)
     case .neon: return .system(size: size, weight: weight, design: .rounded)
-    case .clean: return .system(size: size, weight: weight)
+    case .paper: return .custom("Georgia", size: size)
+    case .midnight: return .system(size: size, weight: weight)
+    case .forest: return .custom("Avenir Next", size: size + 0.5)
+    case .candy: return .system(size: size, weight: weight, design: .rounded)
+    default: return .system(size: size, weight: weight)
     }
 }
 
@@ -120,14 +171,33 @@ struct SketchyRoundedRect: Shape {
         var path = Path()
         guard rect.width > 4, rect.height > 4 else { return path }
         let r = min(cornerRadius, min(rect.width, rect.height) / 2)
-        let n = 40
-        var pts: [CGPoint] = (0..<n).map { i in
-            Self.perimeterPoint(rect: rect, radius: r, t: CGFloat(i) / CGFloat(n))
+        // Sample per segment — a point every ~16px on edges, at least 3 per
+        // corner arc — never uniformly over the whole perimeter: on a tall
+        // card uniform points leave 100px gaps, the corner falls in a gap,
+        // and the smoothing curve cuts a chord straight across the first
+        // row's text.
+        let w = rect.width - 2 * r
+        let h = rect.height - 2 * r
+        let arc = .pi * r / 2
+        let lengths: [CGFloat] = [w, arc, h, arc, w, arc, h, arc]
+        let total = lengths.reduce(0, +)
+        var ts: [CGFloat] = []
+        var start: CGFloat = 0
+        for (i, len) in lengths.enumerated() {
+            let count = i.isMultiple(of: 2)
+                ? max(2, Int(len / 16))   // edge
+                : max(3, Int(len / 8))    // corner arc
+            for k in 0..<count {
+                ts.append((start + len * CGFloat(k) / CGFloat(count)) / total)
+            }
+            start += len
         }
+        var pts: [CGPoint] = ts.map { Self.perimeterPoint(rect: rect, radius: r, t: $0) }
         for i in pts.indices {
             pts[i].x += noise(i * 2) * jitter
             pts[i].y += noise(i * 2 + 1) * jitter
         }
+        let n = pts.count
         let firstMid = CGPoint(x: (pts[n - 1].x + pts[0].x) / 2,
                                y: (pts[n - 1].y + pts[0].y) / 2)
         path.move(to: firstMid)
@@ -281,8 +351,40 @@ struct SkinBackground: View {
         case .sketch: ScribbleBackground(seed: seed)
         case .terminal: ScanlineBackground()
         case .blueprint: GridBackground()
+        case .midnight: StarsBackground(seed: seed)
         default: EmptyView()
         }
+    }
+}
+
+/// Faint starfield for the Midnight skin — seeded dots of varying size,
+/// a few with a soft twinkle cross.
+struct StarsBackground: View {
+    var seed: UInt64 = 1
+
+    var body: some View {
+        Canvas { ctx, size in
+            var rng = SeededRNG(state: seed &* 0x9E3779B97F4A7C15 &+ 777)
+            let count = Int(size.width * size.height / 6000) + 24
+            for i in 0..<count {
+                let x = rng.next() * size.width
+                let y = rng.next() * size.height
+                let r = 0.5 + rng.next() * 1.1
+                let bright = 0.06 + rng.next() * 0.16
+                let star = Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+                ctx.fill(star, with: .color(.white.opacity(bright)))
+                // Every ~8th star gets a subtle 4-point twinkle.
+                if i % 8 == 0 {
+                    var cross = Path()
+                    cross.move(to: CGPoint(x: x - r * 3, y: y))
+                    cross.addLine(to: CGPoint(x: x + r * 3, y: y))
+                    cross.move(to: CGPoint(x: x, y: y - r * 3))
+                    cross.addLine(to: CGPoint(x: x, y: y + r * 3))
+                    ctx.stroke(cross, with: .color(.white.opacity(bright * 0.5)), lineWidth: 0.5)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -348,6 +450,8 @@ struct CardGroup<Content: View>: View {
             case .terminal: return 4
             case .retro: return 2
             case .sketch: return 14
+            case .paper: return 8
+            case .candy: return 14
             default: return 12
             }
         }()
@@ -377,7 +481,22 @@ struct CardGroup<Content: View>: View {
                 case .neon:
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(ink.opacity(0.6), lineWidth: 1.2)
-                case .clean:
+                case .paper:
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(p.border, lineWidth: 1)
+                case .midnight:
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(colors: [ink.opacity(0.45), ink.opacity(0.12)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 1)
+                case .forest:
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(p.border, lineWidth: 1)
+                case .candy:
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(p.border, lineWidth: 1.3)
+                default:
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(p.border, lineWidth: 1)
                 }
@@ -392,6 +511,9 @@ struct CardGroup<Content: View>: View {
         case .retro: return .black.opacity(0.8)
         case .neon: return Color(red: 1.0, green: 0.3, blue: 0.7).opacity(0.25)
         case .sketch: return .clear
+        case .paper: return .black.opacity(0.07)
+        case .midnight: return Color(red: 0.45, green: 0.52, blue: 0.95).opacity(0.14)
+        case .candy: return Color(red: 0.95, green: 0.42, blue: 0.66).opacity(0.15)
         case .clean: return scheme == .dark ? .clear : .black.opacity(0.04)
         default: return .clear
         }

@@ -26,7 +26,7 @@ enum TextCleaner {
     /// Converts spoken commands into formatting: "new line" → \n,
     /// "new paragraph" → blank line. Eats surrounding commas/periods the
     /// recognizer tends to add around them.
-    static func applyCommands(_ text: String) -> String {
+    static func applyCommands(_ text: String, includeEmoji: Bool = true) -> String {
         var s = text
         let lineCommands: [(String, String)] = [
             ("new paragraph", "\n\n"),
@@ -38,9 +38,7 @@ enum TextCleaner {
                 with: inserted,
                 options: .regularExpression)
         }
-        let symbolCommands: [(String, String)] = [
-            ("bullet point", "• "),
-            ("em dash", "— "),
+        let emojiCommands: [(String, String)] = includeEmoji ? [
             ("smiley face", "🙂"),
             ("winky face", "😉"),
             ("heart emoji", "❤️"),
@@ -50,6 +48,10 @@ enum TextCleaner {
             ("rocket emoji", "🚀"),
             ("check mark", "✅"),
             ("shrug emoji", #"¯\_(ツ)_/¯"#),
+        ] : []
+        let symbolCommands: [(String, String)] = emojiCommands + [
+            ("bullet point", "• "),
+            ("em dash", "— "),
             ("open paren", "("),
             ("close paren", ")"),
             ("open quote", "\u{201C}"),
@@ -74,10 +76,9 @@ enum TextCleaner {
                 with: regexTemplate(symbol),
                 options: .regularExpression)
         }
-        let df = DateFormatter(); df.dateStyle = .medium
         let tf = DateFormatter(); tf.timeStyle = .short
         s = s.replacingOccurrences(of: "(?i)\\btoday's date\\b[,.]?",
-                                   with: regexTemplate(df.string(from: Date())),
+                                   with: regexTemplate(AppSettings.shared.dateStyleChoice.format(Date())),
                                    options: .regularExpression)
         s = s.replacingOccurrences(of: "(?i)\\bcurrent time\\b[,.]?",
                                    with: regexTemplate(tf.string(from: Date())),
@@ -85,18 +86,138 @@ enum TextCleaner {
         return s
     }
 
-    /// Expands {date}, {time}, and {clipboard} placeholders (usable in
-    /// dictionary replacement values).
+    /// Expands {date}, {time}, {weekday}, {month}, {year}, and {clipboard}
+    /// placeholders (usable in dictionary replacement values).
     static func expandVariables(_ text: String) -> String {
         guard text.contains("{") else { return text }
         var s = text
-        let df = DateFormatter(); df.dateStyle = .medium
         let tf = DateFormatter(); tf.timeStyle = .short
-        s = s.replacingOccurrences(of: "{date}", with: df.string(from: Date()))
+        let wf = DateFormatter(); wf.dateFormat = "EEEE"
+        let mf = DateFormatter(); mf.dateFormat = "MMMM"
+        let yf = DateFormatter(); yf.dateFormat = "yyyy"
+        s = s.replacingOccurrences(of: "{date}",
+                                   with: AppSettings.shared.dateStyleChoice.format(Date()))
         s = s.replacingOccurrences(of: "{time}", with: tf.string(from: Date()))
+        s = s.replacingOccurrences(of: "{weekday}", with: wf.string(from: Date()))
+        s = s.replacingOccurrences(of: "{month}", with: mf.string(from: Date()))
+        s = s.replacingOccurrences(of: "{year}", with: yf.string(from: Date()))
         if s.contains("{clipboard}") {
             s = s.replacingOccurrences(of: "{clipboard}",
                                        with: NSPasteboard.general.string(forType: .string) ?? "")
+        }
+        return s
+    }
+
+    /// Spelled-out numbers → digits ("twenty five" → 25, "seven" → 7).
+    /// Handles zero–twenty, tens, and tens-plus-unit compounds.
+    static func numbersToDigits(_ text: String) -> String {
+        let units = ["zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+                     "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+                     "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+                     "nineteen": 19, "twenty": 20]
+        let tens = ["twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+                    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90]
+        var s = text
+        // Compounds first ("twenty five" / "twenty-five"), then lone tens/units.
+        for (tWord, tVal) in tens {
+            for (uWord, uVal) in units where (1...9).contains(uVal) {
+                s = s.replacingOccurrences(
+                    of: "(?i)\\b\(tWord)[ -]\(uWord)\\b",
+                    with: "\(tVal + uVal)",
+                    options: .regularExpression)
+            }
+        }
+        for (word, val) in tens.merging(units, uniquingKeysWith: { a, _ in a }) {
+            s = s.replacingOccurrences(
+                of: "(?i)\\b\(word)\\b",
+                with: "\(val)",
+                options: .regularExpression)
+        }
+        return s
+    }
+
+    /// Collapses accidental doubled words: "the the" → "the".
+    static func removeDoubledWords(_ text: String) -> String {
+        var s = text
+        var previous: String
+        repeat {
+            previous = s
+            s = s.replacingOccurrences(of: "(?i)\\b(\\w+)(\\s+\\1)+\\b",
+                                       with: "$1",
+                                       options: .regularExpression)
+        } while s != previous
+        return s
+    }
+
+    /// Adds a trailing period when the text doesn't already end in punctuation.
+    static func ensureEndPunctuation(_ text: String) -> String {
+        guard let last = text.last, !text.isEmpty else { return text }
+        return ".!?…:;,".contains(last) ? text : text + "."
+    }
+
+    /// Strips leading conversational starters: "So," "Well," "Okay," etc.
+    static func stripStarterWords(_ text: String) -> String {
+        var s = text
+        var previous: String
+        repeat {
+            previous = s
+            s = s.replacingOccurrences(of: "(?i)^(so|well|okay|ok|anyway|alright|basically|like)[,]?\\s+",
+                                       with: "",
+                                       options: .regularExpression)
+        } while s != previous
+        return s
+    }
+
+    /// "scratch that" — drops everything dictated before (and including) the
+    /// last occurrence, keeping only what was said after it.
+    static func applyScratchThat(_ text: String) -> String {
+        guard let range = text.range(of: "(?i)\\bscratch that\\b[,.]?\\s*",
+                                     options: [.regularExpression, .backwards]) else { return text }
+        return String(text[range.upperBound...])
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Explicit spoken punctuation: "period" → ".", "comma" → ",", etc.
+    /// Attaches to the preceding word and eats the recognizer's own
+    /// trailing punctuation on the spoken word.
+    static func applySpokenPunctuation(_ text: String) -> String {
+        var s = text
+        let marks: [(String, String)] = [
+            ("question mark", "?"),
+            ("exclamation point", "!"),
+            ("exclamation mark", "!"),
+            ("semicolon", ";"),
+            ("period", "."),
+            ("comma", ","),
+            ("colon", ":"),
+        ]
+        for (spoken, mark) in marks {
+            s = s.replacingOccurrences(
+                of: "\\s*(?i)\\b\(spoken)\\b[,.]?",
+                with: mark,
+                options: .regularExpression)
+        }
+        return s
+    }
+
+    /// Masks censored words in the chosen style: d*** / •••• / [redacted].
+    static func censor(_ text: String, words: [String],
+                       style: CensorStyle = .asterisks) -> String {
+        var s = text
+        for word in words.map({ $0.trimmingCharacters(in: .whitespaces) }) where word.count > 1 {
+            let first = NSRegularExpression.escapedPattern(for: String(word.prefix(1)))
+            let rest = NSRegularExpression.escapedPattern(for: String(word.dropFirst()))
+            let replacement: String
+            switch style {
+            case .asterisks: replacement = "$1" + String(repeating: "*", count: word.count - 1)
+            case .bullets: replacement = String(repeating: "\u{2022}", count: word.count)
+            case .redacted: replacement = "[redacted]"
+            }
+            s = s.replacingOccurrences(
+                of: "(?i)\\b(\(first))\(rest)\\b",
+                with: replacement,
+                options: .regularExpression)
         }
         return s
     }
@@ -125,19 +246,42 @@ enum TextCleaner {
     }
 
     /// Applies the user's dictionary: longer phrases first so "my work email"
-    /// wins over "my email". Case-insensitive, word-boundary matches.
+    /// wins over "my email". Case-insensitive, word-boundary matches (both
+    /// configurable), optionally preserving the spoken capitalization.
     static func applyReplacements(_ text: String, _ replacements: [Replacement]) -> String {
         var s = text
+        let settings = AppSettings.shared
         let usable = replacements
             .filter { $0.enabled && !$0.phrase.isEmpty && !$0.replacement.isEmpty }
             .sorted { $0.phrase.count > $1.phrase.count }
-        let flag = AppSettings.shared.caseSensitiveReplacements ? "" : "(?i)"
+        let flag = settings.caseSensitiveReplacements ? "" : "(?i)"
+        let boundary = settings.matchInsideWords ? "" : "\\b"
         for r in usable {
             let escaped = NSRegularExpression.escapedPattern(for: r.phrase)
-            s = s.replacingOccurrences(
-                of: "\(flag)\\b\(escaped)\\b",
-                with: regexTemplate(r.replacement),
-                options: .regularExpression)
+            let pattern = "\(flag)\(boundary)\(escaped)\(boundary)"
+            if settings.preserveCaseReplacements, !settings.caseSensitiveReplacements,
+               let regex = try? NSRegularExpression(pattern: pattern) {
+                // Walk matches back-to-front so ranges stay valid, matching
+                // the replacement's capitalization to the spoken phrase's.
+                let ns = s as NSString
+                let matches = regex.matches(in: s, range: NSRange(location: 0, length: ns.length))
+                var out = s
+                for m in matches.reversed() {
+                    guard let range = Range(m.range, in: out) else { continue }
+                    let spoken = String(out[range])
+                    var repl = r.replacement
+                    if let first = spoken.first, first.isUppercase, let rFirst = repl.first {
+                        repl = String(rFirst).uppercased() + repl.dropFirst()
+                    }
+                    out.replaceSubrange(range, with: repl)
+                }
+                s = out
+            } else {
+                s = s.replacingOccurrences(
+                    of: pattern,
+                    with: regexTemplate(r.replacement),
+                    options: .regularExpression)
+            }
         }
         return s
     }

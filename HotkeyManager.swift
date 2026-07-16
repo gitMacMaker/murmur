@@ -82,8 +82,10 @@ final class HotkeyManager {
         guard startedThisPress else { return }
         startedThisPress = false
         let heldFor = -(keyDownAt?.timeIntervalSinceNow ?? 0)
-        if heldFor >= AppSettings.shared.tapThreshold {
-            // Push-to-talk: release ends the recording.
+        if heldFor >= AppSettings.shared.tapThreshold || AppSettings.shared.holdOnlyMode {
+            // Push-to-talk: release ends the recording. Hold-only mode treats
+            // even quick taps as a (very short) hold instead of going
+            // hands-free — for users who tap the key by accident.
             handsFree = false
             onFinish?()
         } else {

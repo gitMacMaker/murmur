@@ -9,6 +9,7 @@ final class PillState: ObservableObject {
     @Published var text: String = ""
     @Published var levels: [CGFloat] = Array(repeating: 0.05, count: 28)
     @Published var targetApp: String?
+    @Published var targetIcon: NSImage?
     @Published var startedAt: Date?
 
     func pushLevel(_ level: Float) {
@@ -29,10 +30,14 @@ final class PillPanel {
     private var panel: NSPanel?
 
     func show() {
+        guard AppSettings.shared.showPillWhileRecording else { return }
         if panel == nil { build() }
         if state.levels.count != AppSettings.shared.waveBarCount {
             state.resetLevels(count: AppSettings.shared.waveBarCount)
         }
+        // Clickable only when "tap to finish" is on — otherwise clicks pass
+        // straight through to whatever is behind the pill.
+        panel?.ignoresMouseEvents = !AppSettings.shared.pillClickToFinish
         position()
         panel?.orderFrontRegardless()
     }
@@ -68,8 +73,11 @@ final class PillPanel {
     }
 
     private func position() {
+        let preferred: NSScreen? = AppSettings.shared.pillScreen == .mouse
+            ? NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+            : NSScreen.main
         guard let p = panel,
-              let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+              let screen = preferred ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let f = screen.visibleFrame
         let s = AppSettings.shared
         let off = CGFloat(s.pillEdgeOffset)
@@ -93,25 +101,42 @@ struct PillView: View {
     @ObservedObject var settings = AppSettings.shared
     @State private var appeared = false
 
+    /// The idle dot can sit at its own alignment, separate from the pill's.
+    private var alignment: PillAlignment {
+        state.phase == .idleDot ? settings.idleDotAlignment : settings.pillAlignment
+    }
+
     var body: some View {
         VStack {
             if settings.pillPosition == .bottom { Spacer() }
             HStack {
-                if settings.pillAlignment != .leading { Spacer(minLength: 0) }
+                if alignment != .leading { Spacer(minLength: 0) }
                 PillBody(state: state, accent: settings.accentColor)
-                    .scaleEffect((appeared ? 1 : 0.85) * settings.pillSize.factor)
+                    .scaleEffect((appeared ? 1 : entranceScale) * settings.pillSize.factor)
                     .opacity(appeared ? 1 : 0)
+                    .offset(x: CGFloat(settings.pillNudge))
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)
-                if settings.pillAlignment != .trailing { Spacer(minLength: 0) }
+                if alignment != .trailing { Spacer(minLength: 0) }
             }
             if settings.pillPosition == .top { Spacer() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if settings.reduceMotion { appeared = true }
-            else { withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { appeared = true } }
+            if settings.reduceMotion { appeared = true; return }
+            switch settings.entranceAnim {
+            case .spring:
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) { appeared = true }
+            case .fade:
+                withAnimation(.easeOut(duration: 0.22)) { appeared = true }
+            case .none:
+                appeared = true
+            }
         }
+    }
+
+    private var entranceScale: CGFloat {
+        settings.entranceAnim == .spring ? 0.85 : 1.0
     }
 }
 
@@ -130,10 +155,11 @@ struct PillBody: View {
     }
 
     private var isDark: Bool {
+        if let spec = pillSkin.spec { return spec.isDark }
         switch pillSkin {
-        case .terminal, .blueprint, .neon: return true
-        case .retro: return false
-        case .clean, .sketch:
+        case .terminal, .blueprint, .neon, .midnight, .forest: return true
+        case .retro, .paper, .candy: return false
+        default:
             switch settings.pillTheme {
             case .dark: return true
             case .light: return false
@@ -143,12 +169,22 @@ struct PillBody: View {
     }
 
     private var ink: Color {
+        switch settings.pillTextColor {
+        case .white: return .white
+        case .black: return Color(white: 0.1)
+        case .auto: break
+        }
+        if let spec = pillSkin.spec { return spec.palette.text }
         switch pillSkin {
         case .terminal: return Color(red: 0.45, green: 0.95, blue: 0.55)
         case .blueprint: return .white.opacity(0.95)
         case .retro: return .black
         case .neon: return Color(red: 1.0, green: 0.88, blue: 0.96)
-        case .clean, .sketch: return isDark ? .white : Color(white: 0.13)
+        case .paper: return Color(red: 0.20, green: 0.16, blue: 0.11)
+        case .midnight: return Color(red: 0.902, green: 0.918, blue: 0.969)
+        case .forest: return Color(red: 0.875, green: 0.941, blue: 0.886)
+        case .candy: return Color(red: 0.29, green: 0.125, blue: 0.22)
+        default: return isDark ? .white : Color(white: 0.13)
         }
     }
 
@@ -156,17 +192,30 @@ struct PillBody: View {
         if state.phase == .idleDot {
             let d = settings.idleDotSize.diameter
             Circle()
-                .fill(accent.opacity(0.5))
+                .fill((settings.idleDotColor == .accent ? accent : Color(white: 0.55))
+                    .opacity(settings.idleDotOpacity))
                 .frame(width: d, height: d)
                 .padding(6)
         } else {
             mainPill
+                .contentShape(Capsule())
+                .onTapGesture {
+                    guard settings.pillClickToFinish else { return }
+                    NotificationCenter.default.post(
+                        name: Notification.Name("MurmurPillTapped"), object: nil)
+                }
         }
     }
 
     private var mainPill: some View {
         HStack(spacing: 14) {
             statusDot
+            if settings.showTargetIcon, let icon = state.targetIcon,
+               state.phase == .listening || state.phase == .handsFree {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 17, height: 17)
+            }
             waveform
             if settings.showTranscript { transcript }
             if settings.showWordCount, wordCount > 0,
@@ -182,7 +231,9 @@ struct PillBody: View {
                state.phase == .listening || state.phase == .handsFree {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let secs = max(0, Int(context.date.timeIntervalSince(started)))
-                    Text(String(format: "%d:%02d", secs / 60, secs % 60))
+                    Text(settings.timerFormat == .mmss
+                         ? String(format: "%d:%02d", secs / 60, secs % 60)
+                         : "\(secs)s")
                         .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(ink.opacity(0.4))
                 }
@@ -200,55 +251,120 @@ struct PillBody: View {
         let top: Color = isDark ? Color(white: 0.10) : Color(white: 1.0)
         let bottom: Color = isDark ? Color(white: 0.04) : Color(white: 0.93)
         let opacity = settings.pillOpacity
+        let borderW = CGFloat(settings.pillBorderWidth)
+        let glowI = settings.glowIntensity
+        if let spec = pillSkin.spec {
+            // Spec-driven skins share one parameterized pill.
+            let shape = RoundedRectangle(cornerRadius: pillRadius(spec.pillRadius),
+                                         style: .continuous)
+            shape
+                .fill(spec.pillFill.opacity(spec.isDark ? opacity : max(0.93, opacity)))
+                .overlay(shape.strokeBorder(spec.pillBorder, lineWidth: borderW))
+                .shadow(color: settings.glowEnabled ? spec.glow.opacity(0.35 * glowI) : .clear,
+                        radius: 16 * glowI, y: 3)
+                .shadow(color: .black.opacity((spec.isDark ? 0.5 : 0.2) * settings.shadowStrength),
+                        radius: 12, y: 5)
+        } else {
         switch pillSkin {
         case .terminal:
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: pillRadius(10), style: .continuous)
+            shape
                 .fill(Color(red: 0.03, green: 0.06, blue: 0.03).opacity(opacity))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(ink.opacity(0.6), lineWidth: 1.2)
-                )
-                .shadow(color: settings.glowEnabled ? ink.opacity(0.3) : .clear, radius: 16, y: 3)
+                .overlay(shape.strokeBorder(ink.opacity(0.6), lineWidth: borderW))
+                .shadow(color: settings.glowEnabled ? ink.opacity(0.3 * glowI) : .clear,
+                        radius: 16 * glowI, y: 3)
                 .shadow(color: .black.opacity(0.5), radius: 12, y: 5)
         case .blueprint:
-            Capsule()
+            let shape = RoundedRectangle(cornerRadius: pillRadius(100), style: .continuous)
+            shape
                 .fill(Color(red: 0.06, green: 0.17, blue: 0.34).opacity(opacity))
                 .overlay(
-                    Capsule()
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.3, dash: [7, 4]))
+                    shape.strokeBorder(style: StrokeStyle(lineWidth: borderW, dash: [7, 4]))
                         .foregroundStyle(.white.opacity(0.8))
                 )
+                .shadow(color: settings.glowEnabled ? .white.opacity(0.2 * glowI) : .clear,
+                        radius: 14 * glowI, y: 3)
                 .shadow(color: .black.opacity(0.45), radius: 12, y: 5)
         case .retro:
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: pillRadius(5), style: .continuous)
+            shape
                 .fill(Color.white.opacity(max(0.92, opacity)))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .strokeBorder(.black, lineWidth: 1.6)
-                )
+                .overlay(shape.strokeBorder(.black, lineWidth: borderW + 0.4))
                 .shadow(color: .black.opacity(0.85), radius: 0, x: 3, y: 3)
         case .neon:
-            Capsule()
+            let shape = RoundedRectangle(cornerRadius: pillRadius(100), style: .continuous)
+            shape
                 .fill(Color(red: 0.08, green: 0.03, blue: 0.13).opacity(opacity))
                 .overlay(
-                    Capsule().strokeBorder(
+                    shape.strokeBorder(
                         LinearGradient(colors: [Color(red: 1, green: 0.3, blue: 0.7),
                                                 Color(red: 0.3, green: 0.85, blue: 1)],
                                        startPoint: .leading, endPoint: .trailing),
-                        lineWidth: 1.5)
+                        lineWidth: borderW + 0.3)
                 )
                 .shadow(color: settings.glowEnabled
-                        ? Color(red: 1, green: 0.3, blue: 0.7).opacity(0.5) : .clear,
-                        radius: 20, y: 4)
+                        ? Color(red: 1, green: 0.3, blue: 0.7).opacity(0.5 * glowI) : .clear,
+                        radius: 20 * glowI, y: 4)
                 .shadow(color: .black.opacity(0.5), radius: 12, y: 5)
-        case .clean, .sketch:
+        case .paper:
+            let shape = RoundedRectangle(cornerRadius: pillRadius(8), style: .continuous)
+            shape
+                .fill(Color(red: 0.995, green: 0.988, blue: 0.965).opacity(max(0.92, opacity)))
+                .overlay(shape.strokeBorder(
+                    Color(red: 0.45, green: 0.36, blue: 0.26).opacity(0.45),
+                    lineWidth: borderW))
+                .shadow(color: .black.opacity(0.18 * settings.shadowStrength), radius: 4, y: 3)
+        case .midnight:
+            let shape = RoundedRectangle(cornerRadius: pillRadius(100), style: .continuous)
+            shape
+                .fill(Color(red: 0.055, green: 0.075, blue: 0.157).opacity(opacity))
+                .overlay(
+                    shape.strokeBorder(
+                        LinearGradient(colors: [Color(red: 0.49, green: 0.55, blue: 0.94),
+                                                Color(red: 0.35, green: 0.80, blue: 0.95)],
+                                       startPoint: .leading, endPoint: .trailing)
+                            .opacity(0.7),
+                        lineWidth: borderW)
+                )
+                .shadow(color: settings.glowEnabled
+                        ? Color(red: 0.49, green: 0.55, blue: 0.94).opacity(0.4 * glowI) : .clear,
+                        radius: 18 * glowI, y: 3)
+                .shadow(color: .black.opacity(0.5 * settings.shadowStrength), radius: 12, y: 5)
+        case .forest:
+            let shape = RoundedRectangle(cornerRadius: pillRadius(16), style: .continuous)
+            shape
+                .fill(Color(red: 0.075, green: 0.129, blue: 0.090).opacity(opacity))
+                .overlay(shape.strokeBorder(
+                    Color(red: 0.44, green: 0.75, blue: 0.53).opacity(0.55),
+                    lineWidth: borderW))
+                .shadow(color: settings.glowEnabled
+                        ? Color(red: 0.44, green: 0.75, blue: 0.53).opacity(0.3 * glowI) : .clear,
+                        radius: 14 * glowI, y: 3)
+                .shadow(color: .black.opacity(0.45 * settings.shadowStrength), radius: 10, y: 5)
+        case .candy:
+            let shape = RoundedRectangle(cornerRadius: pillRadius(100), style: .continuous)
+            shape
+                .fill(Color(red: 1.0, green: 0.918, blue: 0.953).opacity(max(0.94, opacity)))
+                .overlay(shape.strokeBorder(.white, lineWidth: borderW + 1))
+                .shadow(color: settings.glowEnabled
+                        ? Color(red: 0.949, green: 0.420, blue: 0.659).opacity(0.4 * glowI) : .clear,
+                        radius: 16 * glowI, y: 3)
+                .shadow(color: Color(red: 0.6, green: 0.2, blue: 0.4)
+                    .opacity(0.25 * settings.shadowStrength), radius: 10, y: 5)
+        default:
             classicBackground(top: top, bottom: bottom, opacity: opacity)
+        }
         }
     }
 
+    /// Corner radius for the pill: the user's corner style, or the skin's
+    /// natural radius when they left it on Capsule.
+    private func pillRadius(_ capsuleDefault: CGFloat) -> CGFloat {
+        settings.pillCorner.radius ?? capsuleDefault
+    }
+
     private var cleanShape: some InsettableShape {
-        let r: CGFloat = settings.pillCorner.radius ?? 100
-        return RoundedRectangle(cornerRadius: r, style: .continuous)
+        RoundedRectangle(cornerRadius: pillRadius(100), style: .continuous)
     }
 
     @ViewBuilder
@@ -257,21 +373,29 @@ struct PillBody: View {
             // Hand-drawn: flat paper/board fill with a wobbly double ink outline.
             let paper: Color = isDark ? Color(white: 0.08) : Color(red: 0.99, green: 0.98, blue: 0.955)
             let sketchInk: Color = isDark ? .white.opacity(0.85) : Color(white: 0.2).opacity(0.9)
-            Capsule()
+            let r = pillRadius(200)
+            RoundedRectangle(cornerRadius: r, style: .continuous)
                 .fill(paper.opacity(opacity))
                 .overlay(
                     ZStack {
-                        SketchyRoundedRect(cornerRadius: 200, seed: 2)
-                            .stroke(sketchInk, lineWidth: 1.6)
-                        SketchyRoundedRect(cornerRadius: 200, seed: 9, jitter: 2.8)
-                            .stroke(sketchInk.opacity(0.3), lineWidth: 1.1)
+                        SketchyRoundedRect(cornerRadius: r, seed: 2)
+                            .stroke(sketchInk, lineWidth: settings.pillBorderWidth + 0.4)
+                        SketchyRoundedRect(cornerRadius: r, seed: 9, jitter: 2.8)
+                            .stroke(sketchInk.opacity(0.3),
+                                    lineWidth: max(0.8, settings.pillBorderWidth - 0.2))
                     }
                 )
-                .shadow(color: .black.opacity(isDark ? 0.5 : 0.18), radius: 10, y: 5)
+                .shadow(color: settings.glowEnabled
+                        ? accent.opacity(0.3 * settings.glowIntensity) : .clear,
+                        radius: 18 * settings.glowIntensity, y: 4)
+                .shadow(color: .black.opacity((isDark ? 0.5 : 0.18) * settings.shadowStrength),
+                        radius: 10, y: 5)
         } else {
+            let customBg = settings.pillBgColor
             cleanShape
                 .fill(
-                    LinearGradient(colors: [top.opacity(opacity), bottom.opacity(opacity)],
+                    LinearGradient(colors: customBg.map { [$0.opacity(opacity), $0.opacity(opacity)] }
+                                        ?? [top.opacity(opacity), bottom.opacity(opacity)],
                                    startPoint: .top, endPoint: .bottom)
                 )
                 .overlay(
@@ -285,7 +409,8 @@ struct PillBody: View {
                 .shadow(color: settings.glowEnabled
                         ? accent.opacity((isDark ? 0.35 : 0.3) * settings.glowIntensity) : .clear,
                         radius: 22 * settings.glowIntensity, y: 4)
-                .shadow(color: .black.opacity(isDark ? 0.5 : 0.22), radius: 14, y: 6)
+                .shadow(color: .black.opacity((isDark ? 0.5 : 0.22) * settings.shadowStrength),
+                        radius: 14, y: 6)
         }
     }
 
@@ -293,9 +418,18 @@ struct PillBody: View {
         ZStack {
             switch state.phase {
             case .listening, .handsFree:
-                Circle().fill(accent)
-                    .frame(width: 10, height: 10)
-                    .shadow(color: settings.glowEnabled ? accent.opacity(0.9) : .clear, radius: 6)
+                switch settings.statusDotStyle {
+                case .dot:
+                    Circle().fill(accent)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: settings.glowEnabled ? accent.opacity(0.9) : .clear, radius: 6)
+                case .mic:
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(accent)
+                case .none:
+                    EmptyView()
+                }
             case .processing:
                 ProgressView().controlSize(.small).tint(ink)
             case .done:
@@ -315,12 +449,13 @@ struct PillBody: View {
     private var waveform: some View {
         switch settings.waveStyle {
         case .bars:
-            HStack(spacing: 2.5) {
+            HStack(spacing: CGFloat(settings.barSpacing)) {
                 ForEach(Array(state.levels.enumerated()), id: \.offset) { _, level in
-                    Capsule()
+                    RoundedRectangle(cornerRadius: settings.squareBars ? 0 : CGFloat(settings.barWidth) / 2,
+                                     style: .continuous)
                         .fill(LinearGradient(colors: markColors(level),
                                              startPoint: .bottom, endPoint: .top))
-                        .frame(width: 3, height: 6 + level * 28)
+                        .frame(width: CGFloat(settings.barWidth), height: 6 + level * 28)
                 }
             }
             .frame(height: 36)
@@ -366,17 +501,24 @@ struct PillBody: View {
             .foregroundStyle(ink.opacity(state.text.isEmpty ? 0.55 : 0.95))
             .lineLimit(1)
             .truncationMode(.head)
-            .frame(minWidth: 130, maxWidth: 270, alignment: .leading)
+            .frame(minWidth: 130, maxWidth: CGFloat(settings.transcriptWidth), alignment: .leading)
     }
 
     private var transcriptFont: Font {
+        let base = CGFloat(settings.pillTextSize)
+        let weight = settings.pillFontWeight.weight
+        if let spec = pillSkin.spec { return spec.font(base, weight) }
         switch pillSkin {
-        case .sketch: return .custom(SketchStyle.fontName(isDark ? .dark : .light), size: 15)
-        case .terminal: return .custom("Menlo", size: 13)
-        case .blueprint: return .custom("Noteworthy", size: 15)
-        case .retro: return .custom("Monaco", size: 13)
-        case .neon: return .system(size: 14, weight: .medium, design: .rounded)
-        case .clean: return .system(size: 14, weight: .medium, design: settings.pillFont.design)
+        case .sketch: return .custom(SketchStyle.fontName(isDark ? .dark : .light), size: base + 1)
+        case .terminal: return .custom("Menlo", size: base - 1)
+        case .blueprint: return .custom("Noteworthy", size: base + 1)
+        case .retro: return .custom("Monaco", size: base - 1)
+        case .neon: return .system(size: base, weight: weight, design: .rounded)
+        case .paper: return .custom("Georgia", size: base)
+        case .midnight: return .system(size: base, weight: weight)
+        case .forest: return .custom("Avenir Next", size: base)
+        case .candy: return .system(size: base, weight: weight, design: .rounded)
+        default: return .system(size: base, weight: weight, design: settings.pillFont.design)
         }
     }
 
@@ -385,6 +527,10 @@ struct PillBody: View {
     }
 
     private var displayText: String {
+        settings.uppercasePill ? rawDisplayText.uppercased() : rawDisplayText
+    }
+
+    private var rawDisplayText: String {
         if !state.text.isEmpty { return state.text }
         switch state.phase {
         case .listening:

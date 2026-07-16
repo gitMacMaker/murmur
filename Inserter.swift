@@ -4,9 +4,21 @@ import AppKit
 /// default, or key-by-key typing when the user enabled that mode.
 /// Shared by the dictation pipeline, menu items, and the History pane.
 enum Inserter {
-    static func insert(_ text: String) {
+    /// Splits out a {cursor} marker: returns the clean text and how many
+    /// characters sit after the marker (→ left-arrow presses post-insert).
+    static func extractCursor(_ text: String) -> (text: String, stepsBack: Int) {
+        guard let range = text.range(of: "{cursor}") else { return (text, 0) }
+        let after = text[range.upperBound...]
+        var clean = text
+        clean.removeSubrange(range)
+        return (clean, after.count)
+    }
+
+    static func insert(_ raw: String) {
+        let (text, stepsBack) = extractCursor(raw)
         if AppSettings.shared.typeInsteadOfPaste, AXIsProcessTrusted() {
             type(text)
+            stepBack(stepsBack)
             return
         }
         let pb = NSPasteboard.general
@@ -20,15 +32,24 @@ enum Inserter {
 
         guard AXIsProcessTrusted() else { return } // stays in clipboard; user pastes manually
 
-        let src = CGEventSource(stateID: .combinedSessionState)
-        let vDown = CGEvent(keyboardEventSource: src, virtualKey: 9, keyDown: true)
-        let vUp = CGEvent(keyboardEventSource: src, virtualKey: 9, keyDown: false)
-        vDown?.flags = .maskCommand
-        vUp?.flags = .maskCommand
-        vDown?.post(tap: .cghidEventTap)
-        vUp?.post(tap: .cghidEventTap)
+        // Optional pause for apps that are slow to regain focus.
+        let delay = AppSettings.shared.insertDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, delay)) {
+            let src = CGEventSource(stateID: .combinedSessionState)
+            // ⌥⇧⌘V = Paste and Match Style, when the user opted in.
+            let flags: CGEventFlags = AppSettings.shared.pasteMatchStyle
+                ? [.maskCommand, .maskShift, .maskAlternate] : .maskCommand
+            let vDown = CGEvent(keyboardEventSource: src, virtualKey: 9, keyDown: true)
+            let vUp = CGEvent(keyboardEventSource: src, virtualKey: 9, keyDown: false)
+            vDown?.flags = flags
+            vUp?.flags = flags
+            vDown?.post(tap: .cghidEventTap)
+            vUp?.post(tap: .cghidEventTap)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { stepBack(stepsBack) }
+        }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        let restoreAfter = max(0.3, AppSettings.shared.restoreDelay) + max(0, delay)
+        DispatchQueue.main.asyncAfter(deadline: .now() + restoreAfter) {
             guard !AppSettings.shared.keepTranscriptOnClipboard, !saved.isEmpty else { return }
             pb.clearContents()
             let items = saved.map { dict -> NSPasteboardItem in
@@ -37,6 +58,17 @@ enum Inserter {
                 return item
             }
             pb.writeObjects(items)
+        }
+    }
+
+    /// Left-arrow presses that walk the cursor back to a {cursor} marker.
+    private static func stepBack(_ steps: Int) {
+        guard steps > 0, AXIsProcessTrusted() else { return }
+        let src = CGEventSource(stateID: .combinedSessionState)
+        for _ in 0..<steps {
+            CGEvent(keyboardEventSource: src, virtualKey: 123, keyDown: true)?.post(tap: .cghidEventTap)
+            CGEvent(keyboardEventSource: src, virtualKey: 123, keyDown: false)?.post(tap: .cghidEventTap)
+            usleep(4000)
         }
     }
 

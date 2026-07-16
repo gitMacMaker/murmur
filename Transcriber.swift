@@ -40,12 +40,13 @@ final class Transcriber: NSObject {
         if recognizer?.supportsOnDeviceRecognition == true {
             req.requiresOnDeviceRecognition = true
         }
-        // Boost recognition of the user's dictionary phrases.
-        let hints = AppSettings.shared.replacements
-            .map(\.phrase)
-            .filter { !$0.isEmpty }
-        if !hints.isEmpty {
-            req.contextualStrings = Array(hints.prefix(100))
+        // Boost recognition of the user's dictionary phrases and custom
+        // vocabulary (names, jargon) — vocabulary first so it survives the cap.
+        let hints = AppSettings.shared.vocabWords
+            + AppSettings.shared.replacements.map(\.phrase)
+        let usable = hints.filter { !$0.isEmpty }
+        if !usable.isEmpty {
+            req.contextualStrings = Array(usable.prefix(100))
         }
         request = req
 

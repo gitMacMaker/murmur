@@ -11,13 +11,14 @@ if let icon = NSImage(contentsOfFile: "icon_1024.png") {
     app.applicationIconImage = icon
 }
 
-func snap<V: View>(_ view: V, width: CGFloat, height: CGFloat, path: String) {
+func snap<V: View>(_ view: V, width: CGFloat, height: CGFloat, path: String,
+                   light: Bool = false) {
     // Back the view with the window background color: vibrancy-based labels
     // don't draw into cacheDisplay without a backdrop.
     let backed = ZStack { Color(nsColor: .windowBackgroundColor); view }
     let host = NSHostingView(rootView: backed)
     host.frame = NSRect(x: 0, y: 0, width: width, height: height)
-    host.appearance = NSAppearance(named: .darkAqua)
+    host.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
     let window = NSWindow(contentRect: host.frame, styleMask: .borderless,
                           backing: .buffered, defer: false)
     window.contentView = host
@@ -87,6 +88,67 @@ let symOut = TextCleaner.applyCommands("it was ninety degree sign hot, ellipsis 
 print("symbols: \(symOut.debugDescription)")
 assert(symOut.contains("\u{00B0}") && symOut.contains("\u{2026}"), "symbols: \(symOut)")
 
+// Spoken punctuation: words become marks attached to the previous word.
+let spokenOut = TextCleaner.applySpokenPunctuation("hello period how are you question mark")
+print("spoken: \(spokenOut.debugDescription)")
+assert(spokenOut == "hello. how are you?", "spoken: \(spokenOut)")
+
+// Scratch that: keep only what follows the last occurrence.
+let scratchOut = TextCleaner.applyScratchThat("this is wrong, scratch that, this is right")
+print("scratch: \(scratchOut.debugDescription)")
+assert(scratchOut == "this is right", "scratch: \(scratchOut)")
+assert(TextCleaner.applyScratchThat("no command here") == "no command here", "scratch no-op")
+
+// Censor: first letter + asterisks, word-boundary, case-insensitive.
+let censorOut = TextCleaner.censor("Damn, that darn thing", words: ["damn", "darn"])
+print("censor: \(censorOut.debugDescription)")
+assert(censorOut == "D***, that d*** thing", "censor: \(censorOut)")
+
+// New template variables.
+let wkOut = TextCleaner.expandVariables("{weekday} in {month} {year}")
+print("varsNew: \(wkOut)")
+assert(!wkOut.contains("{"), "varsNew: \(wkOut)")
+
+// Numbers to digits: compounds and singles.
+let numOut = TextCleaner.numbersToDigits("twenty five dollars and seven cents")
+print("numbers: \(numOut.debugDescription)")
+assert(numOut == "25 dollars and 7 cents", "numbers: \(numOut)")
+
+// Doubled words collapse (case-insensitive).
+let dblOut = TextCleaner.removeDoubledWords("the the quick brown brown brown fox")
+print("doubled: \(dblOut.debugDescription)")
+assert(dblOut == "the quick brown fox", "doubled: \(dblOut)")
+
+// End punctuation only when missing.
+assert(TextCleaner.ensureEndPunctuation("hello") == "hello.", "endPunct add")
+assert(TextCleaner.ensureEndPunctuation("hello!") == "hello!", "endPunct keep")
+
+// Starter words stripped repeatedly.
+let startOut = TextCleaner.stripStarterWords("So, well, this is the point")
+print("starters: \(startOut.debugDescription)")
+assert(startOut == "this is the point", "starters: \(startOut)")
+
+// Censor styles.
+assert(TextCleaner.censor("damn", words: ["damn"], style: .bullets) == "••••", "censor bullets")
+assert(TextCleaner.censor("damn", words: ["damn"], style: .redacted) == "[redacted]", "censor redacted")
+
+// {cursor} extraction.
+let cur = Inserter.extractCursor("Dear {cursor},\nBest")
+print("cursor: \(cur)")
+assert(cur.text == "Dear ,\nBest" && cur.stepsBack == 6, "cursor: \(cur)")
+assert(Inserter.extractCursor("plain").stepsBack == 0, "cursor no-op")
+
+// Emoji gate: off leaves the phrase alone, on converts.
+assert(TextCleaner.applyCommands("fire emoji", includeEmoji: false) == "fire emoji", "emoji gate off")
+assert(TextCleaner.applyCommands("fire emoji", includeEmoji: true).contains("🔥"), "emoji gate on")
+
+// Backup Extra2 round-trip.
+let bk2 = try! AppSettings.shared.exportBackup()
+let dec2 = try! JSONDecoder().decode(AppSettings.Backup.self, from: bk2)
+assert(dec2.extra2 != nil, "backup missing extra2")
+assert(dec2.extra2?.barWidth == AppSettings.shared.barWidth, "extra2 roundtrip")
+print("backup extra2 OK")
+
 // CSV round-trip: fields with commas, quotes, and newlines must survive.
 let csvPhrase = "hello, \"world\""
 let csvRepl = "line1\nline2"
@@ -120,6 +182,23 @@ struct StatsPreview2: View {
 }
 snap(StatsPreview2(), width: 524, height: 760, path: "preview_stats2.png")
 
+// Sketch-mode fixes proof: card outlines must hug corners (not cut across
+// row text), and corner/border/glow must now restyle the sketch pill.
+let origSkinS = AppSettings.shared.skin
+let origCornerS = AppSettings.shared.pillCorner
+let origBorderS = AppSettings.shared.pillBorderWidth
+let origGlowS = AppSettings.shared.glowIntensity
+AppSettings.shared.skin = .sketch
+snap(AppearancePreview(), width: 524, height: 560, path: "preview_sketch_pill_default.png")
+AppSettings.shared.pillCorner = .square
+AppSettings.shared.pillBorderWidth = 3.0
+AppSettings.shared.glowIntensity = 2.0
+snap(AppearancePreview(), width: 524, height: 560, path: "preview_sketch_pill_square.png")
+AppSettings.shared.pillCorner = origCornerS
+AppSettings.shared.pillBorderWidth = origBorderS
+AppSettings.shared.glowIntensity = origGlowS
+AppSettings.shared.skin = origSkinS
+
 // Monochrome waveform proof (flip real default, snapshot, restore).
 let origMono = AppSettings.shared.waveMonochrome
 AppSettings.shared.waveMonochrome = true
@@ -135,6 +214,18 @@ struct DictionaryPreview: View {
 
 // Skin renders (flip the real defaults, snapshot, restore)
 let origSkin = AppSettings.shared.skin
+AppSettings.shared.skin = .ocean
+snap(SettingsRootView(), width: 700, height: 500, path: "preview_ocean.png")
+AppSettings.shared.skin = .honey
+snap(AppearancePreview(), width: 524, height: 560, path: "preview_honey_pill.png", light: true)
+AppSettings.shared.skin = .midnight
+snap(SettingsRootView(), width: 700, height: 500, path: "preview_midnight.png")
+AppSettings.shared.skin = .paper
+snap(SettingsRootView(), width: 700, height: 500, path: "preview_paper.png", light: true)
+AppSettings.shared.skin = .forest
+snap(AppearancePreview(), width: 524, height: 560, path: "preview_forest_pill.png")
+AppSettings.shared.skin = .candy
+snap(SettingsRootView(), width: 700, height: 500, path: "preview_candy.png", light: true)
 AppSettings.shared.skin = .sketch
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_sketch_settings.png")
 AppSettings.shared.skin = .terminal
