@@ -228,13 +228,27 @@ enum AppSkin: String, CaseIterable, Identifiable {
 }
 
 enum OutputCase: String, CaseIterable, Identifiable, Codable {
-    case asSpoken, lowercase, uppercase
+    case asSpoken, lowercase, uppercase, titleCase
     var id: String { rawValue }
     var label: String {
         switch self {
         case .asSpoken: return "As Spoken"
-        case .lowercase: return "lowercase"
-        case .uppercase: return "UPPERCASE"
+        case .lowercase: return "lower"
+        case .uppercase: return "UPPER"
+        case .titleCase: return "Title"
+        }
+    }
+}
+
+enum IdleDotSize: String, CaseIterable, Identifiable, Codable {
+    case small, medium, large
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+    var diameter: CGFloat {
+        switch self {
+        case .small: return 6
+        case .medium: return 9
+        case .large: return 13
         }
     }
 }
@@ -488,6 +502,11 @@ final class AppSettings: ObservableObject {
     @Published var totalSpeakSeconds: Double { didSet { d.set(totalSpeakSeconds, forKey: "speakSecs") } }
     @Published var soundTheme: SoundTheme { didSet { d.set(soundTheme.rawValue, forKey: "soundTheme") } }
     @Published var insertTarget: InsertTarget { didSet { d.set(insertTarget.rawValue, forKey: "insertTarget") } }
+    @Published var autoCapSentences: Bool { didSet { d.set(autoCapSentences, forKey: "autoCapSent") } }
+    @Published var trailingNewline: Bool { didSet { d.set(trailingNewline, forKey: "trailNewline") } }
+    @Published var showPillTimer: Bool { didSet { d.set(showPillTimer, forKey: "showPillTimer") } }
+    @Published var waveMonochrome: Bool { didSet { d.set(waveMonochrome, forKey: "waveMono") } }
+    @Published var idleDotSize: IdleDotSize { didSet { d.set(idleDotSize.rawValue, forKey: "idleDotSize") } }
 
     var minutesSaved: Double { Double(totalWords) * (1.0 / 40.0 - 1.0 / 150.0) }
 
@@ -561,6 +580,25 @@ final class AppSettings: ObservableObject {
         var history: [HistoryItem]
         var dailyWords: [String: Int]
         var earned: [String: Date]
+        /// Everything added after the original backup format. Optional so
+        /// backups written by older versions still import (missing → keep
+        /// current value); every field inside is optional for the same reason.
+        var extra: Extra?
+
+        struct Extra: Codable {
+            var polishBackend, pillTheme, pillCorner, pillFont: String?
+            var pillMatchesSkin, capitalizeI, smartPunctuation, trailingSpace,
+                noTrailingPeriod, keepTranscriptOnClipboard, showMenuBarStreak,
+                caseSensitiveReplacements, recordTintAccent, idleIndicator, reduceMotion,
+                autoCapSentences, trailingNewline, showPillTimer, waveMonochrome: Bool?
+            var idleDotSize: String?
+            var soundVolume, pillBorderWidth, glowIntensity, waveGain,
+                pillEdgeOffset, totalSpeakSeconds: Double?
+            var historyLimit, discardShortWords, maxRecordSeconds,
+                longToClipboardWords, waveBarCount, historyMaxAgeDays: Int?
+            var fillerWords: [String]?
+            var appRules: [AppRule]?
+        }
     }
 
     func exportBackup() throws -> Data {
@@ -581,7 +619,28 @@ final class AppSettings: ObservableObject {
             dailyGoal: dailyGoal, totalWords: totalWords,
             totalSessions: totalSessions, maxStreak: maxStreak,
             replacements: replacements, history: history,
-            dailyWords: dailyWords, earned: earned)
+            dailyWords: dailyWords, earned: earned,
+            extra: Backup.Extra(
+                polishBackend: polishBackend.rawValue, pillTheme: pillTheme.rawValue,
+                pillCorner: pillCorner.rawValue, pillFont: pillFont.rawValue,
+                pillMatchesSkin: pillMatchesSkin, capitalizeI: capitalizeI,
+                smartPunctuation: smartPunctuation, trailingSpace: trailingSpace,
+                noTrailingPeriod: noTrailingPeriod,
+                keepTranscriptOnClipboard: keepTranscriptOnClipboard,
+                showMenuBarStreak: showMenuBarStreak,
+                caseSensitiveReplacements: caseSensitiveReplacements,
+                recordTintAccent: recordTintAccent, idleIndicator: idleIndicator,
+                reduceMotion: reduceMotion, autoCapSentences: autoCapSentences,
+                trailingNewline: trailingNewline, showPillTimer: showPillTimer,
+                waveMonochrome: waveMonochrome,
+                idleDotSize: idleDotSize.rawValue, soundVolume: soundVolume,
+                pillBorderWidth: pillBorderWidth, glowIntensity: glowIntensity,
+                waveGain: waveGain, pillEdgeOffset: pillEdgeOffset,
+                totalSpeakSeconds: totalSpeakSeconds, historyLimit: historyLimit,
+                discardShortWords: discardShortWords, maxRecordSeconds: maxRecordSeconds,
+                longToClipboardWords: longToClipboardWords, waveBarCount: waveBarCount,
+                historyMaxAgeDays: historyMaxAgeDays, fillerWords: fillerWords,
+                appRules: appRules))
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try enc.encode(b)
@@ -613,6 +672,42 @@ final class AppSettings: ObservableObject {
         totalSessions = b.totalSessions; maxStreak = b.maxStreak
         replacements = b.replacements; history = b.history
         dailyWords = b.dailyWords; earned = b.earned
+        if let e = b.extra {
+            if let v = e.polishBackend { polishBackend = PolishBackend(rawValue: v) ?? polishBackend }
+            if let v = e.pillTheme { pillTheme = PillTheme(rawValue: v) ?? pillTheme }
+            if let v = e.pillCorner { pillCorner = PillCorner(rawValue: v) ?? pillCorner }
+            if let v = e.pillFont { pillFont = PillFont(rawValue: v) ?? pillFont }
+            if let v = e.pillMatchesSkin { pillMatchesSkin = v }
+            if let v = e.capitalizeI { capitalizeI = v }
+            if let v = e.smartPunctuation { smartPunctuation = v }
+            if let v = e.trailingSpace { trailingSpace = v }
+            if let v = e.noTrailingPeriod { noTrailingPeriod = v }
+            if let v = e.keepTranscriptOnClipboard { keepTranscriptOnClipboard = v }
+            if let v = e.showMenuBarStreak { showMenuBarStreak = v }
+            if let v = e.caseSensitiveReplacements { caseSensitiveReplacements = v }
+            if let v = e.recordTintAccent { recordTintAccent = v }
+            if let v = e.idleIndicator { idleIndicator = v }
+            if let v = e.reduceMotion { reduceMotion = v }
+            if let v = e.soundVolume { soundVolume = v }
+            if let v = e.pillBorderWidth { pillBorderWidth = v }
+            if let v = e.glowIntensity { glowIntensity = v }
+            if let v = e.waveGain { waveGain = v }
+            if let v = e.pillEdgeOffset { pillEdgeOffset = v }
+            if let v = e.totalSpeakSeconds { totalSpeakSeconds = v }
+            if let v = e.historyLimit { historyLimit = v }
+            if let v = e.discardShortWords { discardShortWords = v }
+            if let v = e.maxRecordSeconds { maxRecordSeconds = v }
+            if let v = e.longToClipboardWords { longToClipboardWords = v }
+            if let v = e.waveBarCount { waveBarCount = v }
+            if let v = e.historyMaxAgeDays { historyMaxAgeDays = v }
+            if let v = e.autoCapSentences { autoCapSentences = v }
+            if let v = e.trailingNewline { trailingNewline = v }
+            if let v = e.showPillTimer { showPillTimer = v }
+            if let v = e.waveMonochrome { waveMonochrome = v }
+            if let v = e.idleDotSize { idleDotSize = IdleDotSize(rawValue: v) ?? idleDotSize }
+            if let v = e.fillerWords { fillerWords = v }
+            if let v = e.appRules { appRules = v }
+        }
     }
 
     func resetToDefaults() {
@@ -816,6 +911,11 @@ final class AppSettings: ObservableObject {
         totalSpeakSeconds = d.double(forKey: "speakSecs")
         soundTheme = SoundTheme(rawValue: d.string(forKey: "soundTheme") ?? "") ?? .soft
         insertTarget = InsertTarget(rawValue: d.string(forKey: "insertTarget") ?? "") ?? .activeApp
+        autoCapSentences = d.object(forKey: "autoCapSent") as? Bool ?? true
+        trailingNewline = d.bool(forKey: "trailNewline")
+        showPillTimer = d.object(forKey: "showPillTimer") as? Bool ?? true
+        waveMonochrome = d.bool(forKey: "waveMono")
+        idleDotSize = IdleDotSize(rawValue: d.string(forKey: "idleDotSize") ?? "") ?? .medium
         if let data = d.data(forKey: "replacements"),
            let items = try? JSONDecoder().decode([Replacement].self, from: data) {
             replacements = items
@@ -1091,6 +1191,12 @@ struct GeneralPane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Capitalize sentences",
+                     subtitle: "Uppercase the first letter after . ! ? and new lines") {
+                    Toggle("", isOn: $settings.autoCapSentences)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Drop trailing period") {
                     Toggle("", isOn: $settings.noTrailingPeriod)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
@@ -1201,6 +1307,12 @@ struct GeneralPane: View {
                 PRow(title: "Add trailing space",
                      subtitle: "Ready for the next sentence") {
                     Toggle("", isOn: $settings.trailingSpace)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Add trailing newline",
+                     subtitle: "End each dictation on a new line (takes priority over space)") {
+                    Toggle("", isOn: $settings.trailingNewline)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
@@ -1427,22 +1539,51 @@ struct DictionaryPane: View {
         guard panel.runModal() == .OK, let url = panel.url,
               let content = try? String(contentsOf: url, encoding: .utf8) else { return }
         var added = 0
-        for line in content.components(separatedBy: .newlines).dropFirst() {
-            let cols = line.components(separatedBy: ",")
+        for cols in Self.parseCSV(content) {
             guard cols.count >= 2 else { continue }
-            let clean: (String) -> String = {
-                $0.trimmingCharacters(in: .whitespaces)
-                  .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                  .replacingOccurrences(of: "\"\"", with: "\"")
-            }
-            let phrase = clean(cols[0])
-            let repl = clean(cols[1...].joined(separator: ","))
+            let phrase = cols[0].trimmingCharacters(in: .whitespaces)
+            let repl = cols[1].trimmingCharacters(in: .whitespaces)
+            // Skip the header row and blanks.
+            if phrase.caseInsensitiveCompare("phrase") == .orderedSame,
+               repl.caseInsensitiveCompare("replacement") == .orderedSame { continue }
             guard !phrase.isEmpty, !repl.isEmpty,
                   !settings.replacements.contains(where: { $0.phrase == phrase }) else { continue }
             settings.replacements.append(Replacement(phrase: phrase, replacement: repl))
             added += 1
         }
         NSLog("Murmur: imported \(added) replacements")
+    }
+
+    /// Minimal RFC-4180 CSV parser: honors quoted fields, escaped quotes
+    /// (`""`), and commas or newlines inside quotes, so anything Export CSV
+    /// writes reads back intact.
+    static func parseCSV(_ text: String) -> [[String]] {
+        var rows: [[String]] = []
+        var row: [String] = []
+        var field = ""
+        var inQuotes = false
+        let chars = Array(text)
+        var i = 0
+        func endRow() { row.append(field); field = ""; rows.append(row); row = [] }
+        while i < chars.count {
+            let c = chars[i]
+            if inQuotes {
+                if c == "\"" {
+                    if i + 1 < chars.count, chars[i + 1] == "\"" { field.append("\""); i += 1 }
+                    else { inQuotes = false }
+                } else { field.append(c) }
+            } else {
+                switch c {
+                case "\"": inQuotes = true
+                case ",": row.append(field); field = ""
+                case "\n", "\r\n", "\r": endRow()
+                default: field.append(c)
+                }
+            }
+            i += 1
+        }
+        if !field.isEmpty || !row.isEmpty { endRow() }
+        return rows
     }
 
     var body: some View {
@@ -1778,6 +1919,12 @@ struct AppearancePane: View {
                     .frame(width: 200)
                 }
                 RowDivider()
+                PRow(title: "Monochrome waveform",
+                     subtitle: "Ink-colored bars instead of the accent gradient") {
+                    Toggle("", isOn: $settings.waveMonochrome)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Background opacity") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.pillOpacity, in: 0.7...1.0)
@@ -1863,6 +2010,19 @@ struct AppearancePane: View {
                 PRow(title: "Idle indicator",
                      subtitle: "Tiny dot stays on screen between dictations") {
                     Toggle("", isOn: $settings.idleIndicator)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Idle dot size") {
+                    Picker("", selection: $settings.idleDotSize) {
+                        ForEach(IdleDotSize.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                }
+                RowDivider()
+                PRow(title: "Show elapsed timer",
+                     subtitle: "Running mm:ss while you dictate") {
+                    Toggle("", isOn: $settings.showPillTimer)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
@@ -2096,6 +2256,8 @@ struct StatsPane: View {
             HStack {
                 Button("Copy Summary") { copyStatsSummary() }
                     .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
+                Button("Save Summary…") { saveStatsSummary() }
+                    .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(p.subtext)
                 Spacer()
                 Button("Reset Stats…") { confirmResetStats() }
                     .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(.red.opacity(0.8))
@@ -2109,18 +2271,29 @@ struct StatsPane: View {
         return "\(secs / 60)m \(secs % 60)s"
     }
 
-    private func copyStatsSummary() {
+    private func statsSummary() -> String {
         let s = settings
-        let text = """
+        return """
         Murmur stats — \(Date().formatted(date: .abbreviated, time: .omitted))
         Words: \(s.totalWords.formatted()) · Sessions: \(s.totalSessions) · Streak: \(s.streak())d (best \(s.maxStreak)d)
         This week: \(s.wordsInWeek(endingDaysAgo: 0)) · Last week: \(s.wordsInWeek(endingDaysAgo: 7))
         Speaking pace: \(s.wordsPerMinute) WPM · Time saved vs typing: ~\(Int(s.minutesSaved)) min
         Badges: \(s.earned.count)/\(Achievement.all.count)
         """
+    }
+
+    private func copyStatsSummary() {
         let pb = NSPasteboard.general
         pb.clearContents()
-        pb.setString(text, forType: .string)
+        pb.setString(statsSummary(), forType: .string)
+    }
+
+    private func saveStatsSummary() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Murmur Stats.txt"
+        panel.title = "Save Stats Summary"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? (statsSummary() + "\n").write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func confirmResetStats() {

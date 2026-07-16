@@ -71,6 +71,46 @@ let varOut = TextCleaner.expandVariables("Sent on {date}")
 print("vars: \(varOut)")
 assert(!varOut.contains("{date}"), "vars failed")
 
+// Sentence capitalization: first letter + after . ! ? and newlines.
+let sentIn = "hello there. how are you? i am fine!\nnew line here"
+let sentOut = TextCleaner.capitalizeSentences(sentIn)
+print("sentences: \(sentOut.debugDescription)")
+assert(sentOut == "Hello there. How are you? I am fine!\nNew line here", "sentences: \(sentOut)")
+
+// Title case output.
+let titleOut = TextCleaner.applyCase("the quick brown fox", .titleCase)
+print("title: \(titleOut)")
+assert(titleOut == "The Quick Brown Fox", "title: \(titleOut)")
+
+// New voice symbols.
+let symOut = TextCleaner.applyCommands("it was ninety degree sign hot, ellipsis right")
+print("symbols: \(symOut.debugDescription)")
+assert(symOut.contains("\u{00B0}") && symOut.contains("\u{2026}"), "symbols: \(symOut)")
+
+// CSV round-trip: fields with commas, quotes, and newlines must survive.
+let csvPhrase = "hello, \"world\""
+let csvRepl = "line1\nline2"
+let csvEsc: (String) -> String = { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+let csvText = "phrase,replacement\n\(csvEsc(csvPhrase)),\(csvEsc(csvRepl))\n"
+let csvRows = DictionaryPane.parseCSV(csvText)
+print("csv rows: \(csvRows.count) -> \(csvRows)")
+assert(csvRows.count == 2, "csv row count: \(csvRows.count)")
+assert(csvRows[1][0] == csvPhrase, "csv phrase: \(csvRows[1][0].debugDescription)")
+assert(csvRows[1][1] == csvRepl, "csv repl: \(csvRows[1][1].debugDescription)")
+
+// Backup round-trip: the new Extra block must export, and a backup without
+// it (older format) must still decode instead of throwing.
+let backupData = try! AppSettings.shared.exportBackup()
+var decoded = try! JSONDecoder().decode(AppSettings.Backup.self, from: backupData)
+print("backup extra present: \(decoded.extra != nil)")
+assert(decoded.extra != nil, "backup missing extra block")
+assert(decoded.extra?.waveBarCount == AppSettings.shared.waveBarCount, "backup extra roundtrip")
+decoded.extra = nil
+let stripped = try! JSONEncoder().encode(decoded)
+let reDecoded = try! JSONDecoder().decode(AppSettings.Backup.self, from: stripped)
+assert(reDecoded.extra == nil, "old-format backup should decode with nil extra")
+print("backup back-compat OK")
+
 struct StatsPreview2: View {
     var body: some View {
         StatsPane(settings: AppSettings.shared)
@@ -79,6 +119,12 @@ struct StatsPreview2: View {
     }
 }
 snap(StatsPreview2(), width: 524, height: 760, path: "preview_stats2.png")
+
+// Monochrome waveform proof (flip real default, snapshot, restore).
+let origMono = AppSettings.shared.waveMonochrome
+AppSettings.shared.waveMonochrome = true
+snap(AppearancePreview(), width: 524, height: 500, path: "preview_mono.png")
+AppSettings.shared.waveMonochrome = origMono
 
 struct DictionaryPreview: View {
     var body: some View {

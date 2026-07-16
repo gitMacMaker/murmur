@@ -114,6 +114,7 @@ struct OnboardingView: View {
     }
 
     var body: some View {
+        let _ = tick  // read so the 1s timer re-runs body and re-checks permissions
         let p = Palette.of(scheme)
         VStack(spacing: 0) {
             VStack(spacing: 12) {
@@ -241,8 +242,11 @@ struct OnboardingView: View {
                 SkinBackground(seed: 3)
             }
         }
-        .onReceive(timer) { _ in tick += 1 } // re-checks permission states live
-        .id(tick)
+        // Bumping `tick` re-runs body (re-reading the live PermState values)
+        // every second. Deliberately NOT `.id(tick)` — that would rebuild the
+        // subtree and drop keyboard focus from the API-key / practice fields
+        // mid-type.
+        .onReceive(timer) { _ in tick += 1 }
     }
 
     private func permissionRow(title: String, detail: String,

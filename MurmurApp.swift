@@ -27,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeys = HotkeyManager()
     private var axPoll: Timer?
     private let settings = AppSettings.shared
+    /// Last text inserted into the active app — enables "Undo Last Insert".
+    private var lastInsertedText: String?
+    /// When true the hotkey is ignored (menu ▸ Pause Murmur).
+    private var paused = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildStatusItem()
@@ -101,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Recording lifecycle
 
     private func startRecording() {
-        guard phase == .idle else { return }
+        guard phase == .idle, !paused else { return }
         do {
             try transcriber.start()
         } catch {
@@ -188,6 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         text = TextCleaner.expandVariables(text)
         if settings.capitalizeI { text = TextCleaner.capitalizeI(text) }
         if settings.smartPunctuation { text = TextCleaner.smartPunctuation(text) }
+        if settings.autoCapSentences { text = TextCleaner.capitalizeSentences(text) }
         let wordCount = text.split(whereSeparator: \.isWhitespace).count
         if settings.discardShortWords > 0, wordCount <= settings.discardShortWords {
             text = ""
@@ -223,8 +228,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let tooLong = settings.longToClipboardWords > 0 && words > settings.longToClipboardWords
         if settings.insertTarget == .clipboardOnly || tooLong {
             Inserter.copyOnly(text)
+            lastInsertedText = nil   // a clipboard copy isn't undoable
         } else {
-            Inserter.insert(settings.trailingSpace ? text + " " : text)
+            var out = text
+            if settings.trailingNewline { out += "\n" }
+            else if settings.trailingSpace { out += " " }
+            Inserter.insert(out)
+            lastInsertedText = out
         }
         let unlocked = settings.record(text, usedPolish: settings.polishEnabled,
                                        usedCommands: usedCommands)
@@ -282,6 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             brightness: 1.0, alpha: 1)
             statusItem.button?.contentTintColor = c
         }
+        statusItem.button?.appearsDisabled = paused && !recording
         rebuildMenu() // keep the Start/Finish dictation item in sync
     }
 
@@ -305,6 +316,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(toggleDictation), keyEquivalent: "d")
         dictate.target = self
         menu.addItem(dictate)
+
+        let pause = NSMenuItem(title: paused ? "Resume Murmur" : "Pause Murmur",
+                               action: #selector(togglePause), keyEquivalent: "")
+        pause.target = self
+        menu.addItem(pause)
+
+        if lastInsertedText != nil {
+            let undo = NSMenuItem(title: "Undo Last Insert",
+                                  action: #selector(undoLastInsert), keyEquivalent: "")
+            undo.target = self
+            menu.addItem(undo)
+        }
 
         if let last = settings.history.max(by: { $0.date < $1.date }) {
             let insertLast = NSMenuItem(title: "Insert Last Transcript",
@@ -396,7 +419,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pill.state.text = "Testing, one two three…"
         pill.state.targetApp = nil
         pill.state.startedAt = nil
-        pill.state.levels = (0..<28).map { _ in CGFloat.random(in: 0.1...0.9) }
+        pill.state.levels = (0..<settings.waveBarCount).map { _ in CGFloat.random(in: 0.1...0.9) }
         pill.show()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
             guard let self, self.phase == .idle else { return }
@@ -412,6 +435,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeys.handsFree = true
             startRecording()
         }
+    }
+
+    @objc private func togglePause() {
+        paused.toggle()
+        if paused, phase == .recording { cancelRecording() }
+        setIcon(recording: phase == .recording)
+    }
+
+    /// Deletes the most recently inserted text by sending one backspace per
+    /// character — assumes the cursor is still where the insert landed.
+    @objc private func undoLastInsert() {
+        guard let text = lastInsertedText, !text.isEmpty, AXIsProcessTrusted() else { return }
+        let src = CGEventSource(stateID: .combinedSessionState)
+        for _ in 0..<text.count {
+            CGEvent(keyboardEventSource: src, virtualKey: 51, keyDown: true)?.post(tap: .cghidEventTap)
+            CGEvent(keyboardEventSource: src, virtualKey: 51, keyDown: false)?.post(tap: .cghidEventTap)
+        }
+        lastInsertedText = nil
+        rebuildMenu()
     }
 
     @objc private func insertSnippet(_ sender: NSMenuItem) {

@@ -55,6 +55,18 @@ enum TextCleaner {
             ("open quote", "\u{201C}"),
             ("close quote", "\u{201D}"),
             ("tab key", "\t"),
+            ("degree sign", "\u{00B0}"),
+            ("degree symbol", "\u{00B0}"),
+            ("ellipsis", "\u{2026}"),
+            ("dot dot dot", "\u{2026}"),
+            ("copyright symbol", "\u{00A9}"),
+            ("trademark symbol", "\u{2122}"),
+            ("right arrow", "\u{2192}"),
+            ("asterisk", "*"),
+            ("hashtag", "#"),
+            ("at sign", "@"),
+            ("percent sign", "%"),
+            ("ampersand", "&"),
         ]
         for (spoken, symbol) in symbolCommands {
             s = s.replacingOccurrences(
@@ -135,7 +147,28 @@ enum TextCleaner {
         case .asSpoken: return text
         case .lowercase: return text.lowercased()
         case .uppercase: return text.uppercased()
+        case .titleCase: return text.capitalized
         }
+    }
+
+    /// Capitalizes the first letter of the text and of each sentence
+    /// (after `.`, `!`, `?`, or a newline).
+    static func capitalizeSentences(_ text: String) -> String {
+        guard !text.isEmpty else { return text }
+        var chars = Array(text)
+        var capitalizeNext = true
+        for i in chars.indices {
+            let c = chars[i]
+            if capitalizeNext, c.isLetter {
+                chars[i] = Character(String(c).uppercased())
+                capitalizeNext = false
+            } else if ".!?\n".contains(c) {
+                capitalizeNext = true
+            } else if !c.isWhitespace && c != "\"" && c != "\u{201C}" && c != "(" {
+                capitalizeNext = false
+            }
+        }
+        return String(chars)
     }
 
     /// Escapes `\` and `$` so replacement text is inserted literally.

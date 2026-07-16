@@ -154,9 +154,10 @@ struct PillBody: View {
 
     var body: some View {
         if state.phase == .idleDot {
+            let d = settings.idleDotSize.diameter
             Circle()
                 .fill(accent.opacity(0.5))
-                .frame(width: 9, height: 9)
+                .frame(width: d, height: d)
                 .padding(6)
         } else {
             mainPill
@@ -177,7 +178,7 @@ struct PillBody: View {
                     .padding(.vertical, 3)
                     .background(Capsule().fill(ink.opacity(0.09)))
             }
-            if let started = state.startedAt,
+            if settings.showPillTimer, let started = state.startedAt,
                state.phase == .listening || state.phase == .handsFree {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let secs = max(0, Int(context.date.timeIntervalSince(started)))
@@ -352,7 +353,10 @@ struct PillBody: View {
         switch state.phase {
         case .processing: return [ink.opacity(0.25), ink.opacity(0.35)]
         case .done: return [.green.opacity(0.6), .green]
-        default: return [accent.opacity(0.75), ink.opacity(0.95)]
+        default:
+            return settings.waveMonochrome
+                ? [ink.opacity(0.45), ink.opacity(0.95)]
+                : [accent.opacity(0.75), ink.opacity(0.95)]
         }
     }
 

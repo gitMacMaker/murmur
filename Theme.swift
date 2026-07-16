@@ -189,7 +189,7 @@ struct SketchyLine: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let n = 10
-        var pts: [CGPoint] = (0...n).map { i in
+        let pts: [CGPoint] = (0...n).map { i in
             let x = rect.minX + rect.width * CGFloat(i) / CGFloat(n)
             let v = sin(Double(i * 3 + seed) * 12.9898) * 43758.5453
             let jitterY = CGFloat(v - v.rounded(.down)) * 2.4 - 1.2
