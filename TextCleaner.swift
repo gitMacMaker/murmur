@@ -101,6 +101,10 @@ enum TextCleaner {
         s = s.replacingOccurrences(of: "{weekday}", with: wf.string(from: Date()))
         s = s.replacingOccurrences(of: "{month}", with: mf.string(from: Date()))
         s = s.replacingOccurrences(of: "{year}", with: yf.string(from: Date()))
+        if s.contains("{greeting}") {
+            s = s.replacingOccurrences(of: "{greeting}",
+                                       with: greeting(style: AppSettings.shared.greetingStyle))
+        }
         if s.contains("{app}") {
             s = s.replacingOccurrences(of: "{app}",
                                        with: NSWorkspace.shared.frontmostApplication?.localizedName ?? "")
@@ -184,6 +188,75 @@ enum TextCleaner {
                                        options: .regularExpression)
         } while s != previous
         return s
+    }
+
+    /// Collapses 3+ consecutive newlines down to a single blank line.
+    static func collapseBlankLines(_ text: String) -> String {
+        text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+    }
+
+    /// Ensures exactly one space after sentence punctuation ("a.Next" → "a. Next").
+    static func ensureSentenceSpacing(_ text: String) -> String {
+        text.replacingOccurrences(of: "([.!?])([A-Z])", with: "$1 $2", options: .regularExpression)
+    }
+
+    /// Forces any user-listed word to its exact typed casing wherever it
+    /// appears — so "iphone"/"IPHONE" both become "iPhone".
+    static func capitalizeProperNouns(_ text: String, _ words: [String]) -> String {
+        var s = text
+        for word in words.map({ $0.trimmingCharacters(in: .whitespaces) }) where word.count > 1 {
+            let escaped = NSRegularExpression.escapedPattern(for: word)
+            s = s.replacingOccurrences(of: "(?i)\\b\(escaped)\\b",
+                                       with: word.replacingOccurrences(of: "$", with: "\\$"),
+                                       options: .regularExpression)
+        }
+        return s
+    }
+
+    /// Strips common Markdown emphasis/heading syntax from polished text.
+    static func stripMarkdown(_ text: String) -> String {
+        var s = text
+        s = s.replacingOccurrences(of: "(\\*\\*|__)(.+?)\\1", with: "$2", options: .regularExpression)
+        s = s.replacingOccurrences(of: "(\\*|_)(.+?)\\1", with: "$2", options: .regularExpression)
+        s = s.replacingOccurrences(of: "(?m)^#{1,6}\\s*", with: "", options: .regularExpression)
+        s = s.replacingOccurrences(of: "(?m)^\\s*[-*]\\s+", with: "", options: .regularExpression)
+        s = s.replacingOccurrences(of: "`(.+?)`", with: "$1", options: .regularExpression)
+        return s
+    }
+
+    /// Lowercases the very first letter (for lowercase-chat style).
+    static func lowercaseFirst(_ text: String) -> String {
+        guard let first = text.first, first.isUppercase else { return text }
+        return first.lowercased() + text.dropFirst()
+    }
+
+    /// Capitalizes the first letter after a colon+space.
+    static func capitalizeAfterColon(_ text: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "(:\\s+)([a-z])") else { return text }
+        var out = text
+        let ns = out as NSString
+        for m in regex.matches(in: out, range: NSRange(location: 0, length: ns.length)).reversed() {
+            guard let r = Range(m.range(at: 2), in: out) else { continue }
+            out.replaceSubrange(r, with: out[r].uppercased())
+        }
+        return out
+    }
+
+    /// Removes a matching pair of surrounding quotes.
+    static func trimSurroundingQuotes(_ text: String) -> String {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        let pairs: [(Character, Character)] = [("\"", "\""), ("\u{201C}", "\u{201D}"), ("'", "'")]
+        for (open, close) in pairs where t.count >= 2 && t.first == open && t.last == close {
+            return String(t.dropFirst().dropLast())
+        }
+        return text
+    }
+
+    /// A time-of-day greeting for the {greeting} variable / prefix.
+    static func greeting(style: Int = 0) -> String {
+        let h = Calendar.current.component(.hour, from: Date())
+        let part = h < 12 ? "morning" : (h < 18 ? "afternoon" : "evening")
+        return style == 1 ? "Good \(part)," : "Good \(part)"
     }
 
     /// "scratch that" — drops everything dictated before (and including) the
@@ -361,8 +434,54 @@ enum TextCleaner {
     static func polish(_ text: String, tone: PolishTone, custom: String = "",
                        completion: @escaping (String) -> Void) {
         let instruction = polishPrompt(tone: tone, custom: custom)
-        // Prefer the user's own Anthropic API key when they chose that engine;
-        // otherwise shell out to the local claude CLI.
+        // Post-process: optionally strip Markdown the model may add; if a
+        // retry is allowed and polish returned the text unchanged (failure),
+        // try once more.
+        var attempted = false
+        func finish(_ out: String) {
+            let cleaned = AppSettings.shared.stripMarkdownOutput ? stripMarkdown(out) : out
+            if AppSettings.shared.polishRetry, !attempted, cleaned == text {
+                attempted = true
+                run(text, instruction: instruction, completion: finish)
+                return
+            }
+            completion(cleaned)
+        }
+        run(text, instruction: instruction, completion: finish)
+    }
+
+    /// AI Command Mode: apply a spoken instruction to selected text (or
+    /// generate fresh text when nothing is selected). Routes through the same
+    /// API-key / CLI backend as polish.
+    static func command(selection: String, instruction: String,
+                        completion: @escaping (String) -> Void) {
+        let prompt: String
+        if selection.isEmpty {
+            prompt = """
+            Follow this instruction and output ONLY the resulting text, with no \
+            preamble, quotes, or explanation: \(instruction)
+            """
+        } else {
+            prompt = """
+            Apply the following instruction to the text below. Output ONLY the \
+            rewritten text — no preamble, no quotes, no explanation.
+
+            Instruction: \(instruction)
+
+            Text:
+            \(selection)
+            """
+        }
+        // The composed prompt is the user message; the system role keeps the
+        // model terse. (For the CLI backend the instruction becomes the
+        // `-p` prompt and the text is piped as stdin — same shape as polish.)
+        let system = "You are a precise writing assistant. Do exactly what the user asks and output only the resulting text."
+        run(prompt, instruction: system, completion: completion)
+    }
+
+    /// One polish attempt via the user's chosen backend.
+    private static func run(_ text: String, instruction: String,
+                            completion: @escaping (String) -> Void) {
         if AppSettings.shared.polishBackend == .api, let key = APIKeyStore.load() {
             APIPolish.polish(text, instruction: instruction, apiKey: key, completion: completion)
             return

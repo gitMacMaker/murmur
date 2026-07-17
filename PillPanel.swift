@@ -83,9 +83,10 @@ final class PillPanel {
         let f = screen.visibleFrame
         let s = AppSettings.shared
         let off = CGFloat(s.pillEdgeOffset)
+        let nudgeY = CGFloat(s.pillOffsetY)
         let y: CGFloat = s.pillPosition == .top
-            ? f.maxY - p.frame.height - max(0, off - 18)
-            : f.minY + off
+            ? f.maxY - p.frame.height - max(0, off - 18) - nudgeY
+            : f.minY + off + nudgeY
         let x: CGFloat
         switch s.pillAlignment {
         case .leading: x = f.minX + 16
@@ -138,7 +139,7 @@ struct PillView: View {
     }
 
     private var entranceScale: CGFloat {
-        settings.entranceAnim == .spring ? 0.85 : 1.0
+        settings.entranceAnim == .spring ? CGFloat(settings.pillAppearScale) : 1.0
     }
 }
 
@@ -193,7 +194,8 @@ struct PillBody: View {
     var body: some View {
         if state.phase == .idleDot {
             let d = settings.idleDotSize.diameter
-            let dotColor = (settings.idleDotColor == .accent ? accent : Color(white: 0.55))
+            let baseDot = (settings.idleDotColor == .accent ? accent : Color(white: 0.55))
+            let dotColor = settings.dimWhenIdle ? baseDot.opacity(0.5) : baseDot
             Group {
                 if settings.idleDotPulse, !settings.reduceMotion {
                     TimelineView(.animation(minimumInterval: 1 / 20)) { context in
@@ -232,7 +234,7 @@ struct PillBody: View {
             }
             if settings.showWaveform { waveform }
             if settings.showTranscript { transcript }
-            if settings.showWordCount, wordCount > 0,
+            if settings.showWordCount, settings.wordCountBadge, wordCount > 0,
                state.phase == .listening || state.phase == .handsFree {
                 Text("\(wordCount)w")
                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
@@ -416,6 +418,7 @@ struct PillBody: View {
                                         ?? [top.opacity(opacity), bottom.opacity(opacity)],
                                    startPoint: .top, endPoint: .bottom)
                 )
+                .background(settings.pillBlur ? AnyView(cleanShape.fill(.ultraThinMaterial)) : AnyView(Color.clear))
                 .overlay(
                     cleanShape.strokeBorder(
                         settings.borderGradient
@@ -482,11 +485,13 @@ struct PillBody: View {
         case .bars:
             HStack(spacing: CGFloat(settings.barSpacing)) {
                 ForEach(Array(state.levels.enumerated()), id: \.offset) { _, level in
+                    // Mirror mode grows bars from the centerline both ways.
                     RoundedRectangle(cornerRadius: settings.squareBars ? 0 : CGFloat(settings.barWidth) / 2,
                                      style: .continuous)
                         .fill(LinearGradient(colors: markColors(level),
                                              startPoint: .bottom, endPoint: .top))
                         .frame(width: CGFloat(settings.barWidth), height: 6 + level * (h - 8))
+                        .frame(height: h, alignment: settings.waveMirror ? .center : .bottom)
                 }
             }
             .frame(height: h)
@@ -539,9 +544,9 @@ struct PillBody: View {
         case .processing: return [ink.opacity(0.25), ink.opacity(0.35)]
         case .done: return [.green.opacity(0.6), .green]
         default:
-            return settings.waveMonochrome
-                ? [ink.opacity(0.45), ink.opacity(0.95)]
-                : [accent.opacity(0.75), ink.opacity(0.95)]
+            if settings.waveMonochrome { return [ink.opacity(0.45), ink.opacity(0.95)] }
+            if settings.accentGradient { return [accent, settings.accentColor2] }
+            return [accent.opacity(0.75), ink.opacity(0.95)]
         }
     }
 
@@ -549,12 +554,15 @@ struct PillBody: View {
         let live = state.phase == .listening || state.phase == .handsFree
         let shown = displayText + (settings.pillCursor && live ? "▎" : "")
         return Text(shown)
-            .font(transcriptFont)
+            .font(settings.monospaceTranscript
+                  ? .system(size: CGFloat(settings.pillTextSize), design: .monospaced)
+                  : transcriptFont)
             .italic(settings.pillItalic)
             .foregroundStyle(ink.opacity(state.text.isEmpty ? 0.55 : 0.95))
             .lineLimit(1)
             .truncationMode(.head)
-            .frame(minWidth: 130, maxWidth: CGFloat(settings.transcriptWidth),
+            .frame(minWidth: CGFloat(settings.pillMinWidth),
+                   maxWidth: CGFloat(settings.transcriptWidth),
                    alignment: settings.transcriptCentered ? .center : .leading)
     }
 
@@ -588,11 +596,18 @@ struct PillBody: View {
         if !state.text.isEmpty { return state.text }
         switch state.phase {
         case .listening:
+            let l = settings.listeningLabel.trimmingCharacters(in: .whitespaces)
+            if !l.isEmpty { return l }
             if let app = state.targetApp { return "Listening → \(app)" }
             return "Listening… release to insert"
         case .handsFree: return "Hands-free — tap to finish, Esc cancels"
-        case .processing: return "Polishing…"
-        case .done: return state.copiedMode ? "Copied — ⌘V to paste" : "Inserted ✓"
+        case .processing:
+            let l = settings.processingLabel.trimmingCharacters(in: .whitespaces)
+            return l.isEmpty ? "Polishing…" : l
+        case .done:
+            let l = settings.doneLabel.trimmingCharacters(in: .whitespaces)
+            if !l.isEmpty { return l }
+            return state.copiedMode ? "Copied — ⌘V to paste" : "Inserted ✓"
         case .error: return "Something went wrong"
         case .idleDot: return ""
         }

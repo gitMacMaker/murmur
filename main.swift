@@ -149,6 +149,56 @@ assert(dec2.extra2 != nil, "backup missing extra2")
 assert(dec2.extra2?.barWidth == AppSettings.shared.barWidth, "extra2 roundtrip")
 print("backup extra2 OK")
 
+// v2.7 engine features.
+assert(TextCleaner.collapseBlankLines("a\n\n\n\n\nb") == "a\n\nb", "collapse blank lines")
+assert(TextCleaner.ensureSentenceSpacing("End.Next one!Go") == "End. Next one! Go", "sentence spacing")
+assert(TextCleaner.capitalizeProperNouns("i love github and iphone", ["GitHub", "iPhone"])
+       == "i love GitHub and iPhone", "proper nouns")
+assert(TextCleaner.stripMarkdown("**bold** and *em* and `code`\n# Head") == "bold and em and code\nHead",
+       "strip markdown")
+assert(TextCleaner.lowercaseFirst("Hello there") == "hello there", "lowercase first")
+assert(TextCleaner.capitalizeAfterColon("note: this is it") == "note: This is it", "cap after colon")
+assert(TextCleaner.trimSurroundingQuotes("\u{201C}quoted\u{201D}") == "quoted", "trim quotes")
+assert(TextCleaner.trimSurroundingQuotes("no quotes") == "no quotes", "trim quotes no-op")
+let greet = TextCleaner.greeting()
+assert(greet.hasPrefix("Good "), "greeting: \(greet)")
+
+// Backup Extra4 round-trip.
+let bk5 = try! AppSettings.shared.exportBackup()
+let dec5 = try! JSONDecoder().decode(AppSettings.Backup.self, from: bk5)
+assert(dec5.extra4 != nil, "backup missing extra4")
+assert(dec5.extra4?.undoDepth == AppSettings.shared.undoDepth, "extra4 roundtrip")
+assert(dec5.extra4?.commandHotkey?.keyCode == AppSettings.shared.commandHotkey.keyCode,
+       "command hotkey backup roundtrip")
+print("v2.7 engine + backup OK")
+
+// AppRule.grammar back-compat + rule with grammar round-trips.
+let gRule = try! JSONDecoder().decode([AppRule].self,
+    from: Data(#"[{"appName":"Mail","grammar":true}]"#.utf8))
+assert(gRule[0].grammar == true && gRule[0].tone == .clean, "grammar rule decode")
+let oldRule2 = try! JSONDecoder().decode([AppRule].self,
+    from: Data(#"[{"appName":"Mail"}]"#.utf8))
+assert(oldRule2[0].grammar == nil, "grammar back-compat")
+print("apps tab rules OK")
+
+// An even 100 skins (99 named + Custom), every spec resolving to a palette.
+assert(AppSkin.allCases.count == 100, "skin count: \(AppSkin.allCases.count)")
+for skin in AppSkin.allCases where skin.spec != nil {
+    _ = skin.spec!.palette  // touch every generated palette
+}
+print("skins: \(AppSkin.allCases.count)")
+
+// Language list: full recognizer catalog, no artificial cap.
+let langCount = GeneralPane.languages.count
+let onDeviceCount = GeneralPane.onDeviceLocales.count
+print("languages: \(langCount) total, \(onDeviceCount) on-device")
+assert(langCount > 16, "language cap not lifted: \(langCount)")
+assert(!GeneralPane.languages.contains { $0.1.isEmpty }, "language names resolve")
+
+// Command Mode: verify the call routes without crashing synchronously.
+TextCleaner.command(selection: "hello world", instruction: "uppercase it") { _ in }
+print("command mode wired")
+
 // v2.6 engine features.
 let dblWl = TextCleaner.removeDoubledWords("it was very very good good", whitelist: ["very"])
 print("dblWl: \(dblWl.debugDescription)")
@@ -279,6 +329,21 @@ snap(StudioPreview(), width: 524, height: 1800, path: "preview_studio_light.png"
 AppSettings.shared.customSkinHue = origCustomHue
 AppSettings.shared.customSkinSat = origCustomSat
 AppSettings.shared.customSkinDark = origCustomDark
+
+// Apps tab render (with a sample rule so the card shows).
+let hadRules = AppSettings.shared.appRules
+if hadRules.isEmpty {
+    AppSettings.shared.appRules = [AppRule(appName: "Slack", customPrompt: "Casual with emojis", grammar: true)]
+}
+struct AppsPreview: View {
+    var body: some View {
+        AppsPane(settings: AppSettings.shared)
+            .background(Palette.of(.dark).bg)
+            .frame(width: 524, height: 760)
+    }
+}
+snap(AppsPreview(), width: 524, height: 760, path: "preview_apps.png")
+AppSettings.shared.appRules = hadRules
 
 AppSettings.shared.skin = .ocean
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_ocean.png")

@@ -32,8 +32,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings.shared
     /// Last text inserted into the active app — enables "Undo Last Insert".
     private var lastInsertedText: String?
+    /// Recent inserts, newest last — multi-level undo (menu ▸ Undo Last Insert).
+    private var undoStack: [String] = []
     /// When true the hotkey is ignored (menu ▸ Pause Murmur).
     private var paused = false
+    /// The current dictation is an AI command (edit selection), not an insert.
+    private var commandMode = false
     /// Set by menu ▸ Dictate to Clipboard: the next delivery copies instead
     /// of inserting, then the flag clears.
     private var forceClipboardOnce = false
@@ -100,6 +104,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: Notification.Name("com.apple.screenIsLocked"), object: nil)
         runWeeklyAutoBackupIfDue()
         checkForUpdateIfDue()
+        rotateSkinIfDue()
+        autoExportTodayIfDue()
         if settings.openSettingsAtLaunch { SettingsWindowController.shared.show() }
         // Global key monitors registered without Accessibility trust never
         // fire — and monitors registered BEFORE trust is granted stay dead.
@@ -132,7 +138,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Wiring
 
     private func wireTranscriber() {
-        transcriber.onPartial = { [weak self] text in self?.pill.state.text = text }
+        transcriber.onPartial = { [weak self] text in
+            guard let self else { return }
+            self.pill.state.text = text
+            // Auto-finish once the live transcript hits the word cap.
+            if self.settings.maxRecordWords > 0, self.phase == .recording,
+               text.split(whereSeparator: \.isWhitespace).count >= self.settings.maxRecordWords {
+                self.hotkeys.handsFree = false
+                self.finishRecording()
+            }
+        }
         transcriber.onLevel = { [weak self] level in
             DispatchQueue.main.async {
                 self?.pill.state.pushLevel(level)
@@ -146,6 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onStart = { [weak self] in self?.startRecording() }
         hotkeys.onFinish = { [weak self] in self?.finishRecording() }
         hotkeys.onCancel = { [weak self] in self?.cancelRecording() }
+        hotkeys.onCommandStart = { [weak self] in self?.startRecording(command: true) }
+        hotkeys.onCommandFinish = { [weak self] in self?.finishRecording() }
         hotkeys.activate()
     }
 
@@ -170,8 +187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startRecording() {
+    private func startRecording(command: Bool = false) {
         guard phase == .idle, !paused else { return }
+        commandMode = command
         let rule = ruleForFrontmostApp()
         if rule?.blocked == true { return } // Murmur is off in this app
         do {
@@ -179,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             pill.state.phase = .error
             pill.state.text = error.localizedDescription
+            if settings.errorSound { NSSound(named: "Basso")?.play() }
             pill.show()
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
                 guard let self else { return }
@@ -203,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.checkAutoStop()
         }
         pill.state.phase = .listening
-        pill.state.text = ""
+        pill.state.text = command ? "⌘ Command — say an edit for the selection" : ""
         pill.state.targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
         pill.state.targetIcon = settings.showTargetIcon
             ? NSWorkspace.shared.frontmostApplication?.icon : nil
@@ -258,7 +277,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopCaffeinate()
         phase = .processing
         pill.state.phase = .processing
-        transcriber.stop { [weak self] raw in self?.handleTranscript(raw) }
+        let wasCommand = commandMode
+        transcriber.stop { [weak self] raw in
+            if wasCommand { self?.handleCommand(raw) } else { self?.handleTranscript(raw) }
+        }
     }
 
     private func cancelRecording() {
@@ -271,6 +293,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pill.hide(toIdleDot: settings.idleIndicator)
         setIcon(recording: false)
         play(.cancel)
+    }
+
+    /// AI Command Mode: the spoken text is an instruction. Grab the current
+    /// selection (⌘C), ask Claude to apply the instruction, and paste the
+    /// result back over the selection (or at the cursor if nothing selected).
+    private func handleCommand(_ raw: String) {
+        commandMode = false
+        let instruction = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !instruction.isEmpty else {
+            phase = .idle; pill.hide(toIdleDot: settings.idleIndicator); setIcon(recording: false); return
+        }
+        // Command Mode needs an AI backend (API key or the claude CLI).
+        let hasAI = settings.polishBackend == .api ? APIKeyStore.exists : ClaudeCLI.found != false
+        guard hasAI else {
+            pill.state.phase = .error
+            pill.state.text = "Command Mode needs AI polish — add an API key or the Claude CLI"
+            if settings.errorSound { NSSound(named: "Basso")?.play() }
+            phase = .idle
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { [weak self] in
+                guard let self, self.phase == .idle else { return }
+                self.pill.hide(toIdleDot: self.settings.idleIndicator)
+            }
+            setIcon(recording: false)
+            return
+        }
+        // Capture the current selection via a clipboard round-trip.
+        let pb = NSPasteboard.general
+        let savedChange = pb.changeCount
+        let savedString = pb.string(forType: .string)
+        if AXIsProcessTrusted() {
+            let src = CGEventSource(stateID: .combinedSessionState)
+            let cDown = CGEvent(keyboardEventSource: src, virtualKey: 8, keyDown: true)
+            let cUp = CGEvent(keyboardEventSource: src, virtualKey: 8, keyDown: false)
+            cDown?.flags = .maskCommand; cUp?.flags = .maskCommand
+            cDown?.post(tap: .cghidEventTap); cUp?.post(tap: .cghidEventTap)
+        }
+        // Give the copy a moment to land, then read the selection.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+            guard let self else { return }
+            let selection = (pb.changeCount != savedChange ? pb.string(forType: .string) : nil) ?? ""
+            self.pill.state.phase = .processing
+            self.pill.state.text = selection.isEmpty ? "Generating…" : "Editing selection…"
+            TextCleaner.command(selection: selection, instruction: instruction) { [weak self] result in
+                guard let self else { return }
+                let out = result.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Restore the user's clipboard before pasting our result.
+                if let s = savedString { pb.clearContents(); pb.setString(s, forType: .string) }
+                guard !out.isEmpty else {
+                    self.phase = .idle
+                    self.pill.hide(toIdleDot: self.settings.idleIndicator)
+                    self.setIcon(recording: false)
+                    return
+                }
+                self.pill.state.copiedMode = false
+                self.pill.state.phase = .done
+                self.pill.state.text = out
+                Inserter.insert(out)
+                self.undoStack.append(out)
+                self.play(.insert)
+                self.setIcon(recording: false)
+                self.phase = .idle
+                DispatchQueue.main.asyncAfter(deadline: .now() + max(1.4, self.settings.doneLinger)) { [weak self] in
+                    guard let self, self.phase == .idle else { return }
+                    self.pill.hide(toIdleDot: self.settings.idleIndicator)
+                }
+            }
+        }
     }
 
     private func handleTranscript(_ raw: String) {
@@ -297,9 +386,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                       style: settings.censorStyle)
         }
         if settings.capitalizeI { text = TextCleaner.capitalizeI(text) }
+        if !settings.properNouns.isEmpty { text = TextCleaner.capitalizeProperNouns(text, settings.properNouns) }
         if settings.smartPunctuation { text = TextCleaner.smartPunctuation(text) }
         if settings.autoCapSentences { text = TextCleaner.capitalizeSentences(text) }
+        if settings.capitalizeAfterColon { text = TextCleaner.capitalizeAfterColon(text) }
+        if settings.ensureSentenceSpacing { text = TextCleaner.ensureSentenceSpacing(text) }
+        if settings.collapseBlankLines { text = TextCleaner.collapseBlankLines(text) }
+        if settings.trimSurroundingQuotes { text = TextCleaner.trimSurroundingQuotes(text) }
+        if settings.autoLowercaseFirst { text = TextCleaner.lowercaseFirst(text) }
         if settings.ensureEndPunctuation { text = TextCleaner.ensureEndPunctuation(text) }
+        if settings.maxWordsPerInsert > 0 {
+            let parts = text.split(whereSeparator: \.isWhitespace)
+            if parts.count > settings.maxWordsPerInsert {
+                text = parts.prefix(settings.maxWordsPerInsert).joined(separator: " ") + "…"
+            }
+        }
+        settings.learnVocabulary(from: raw)
+        if settings.trackReplacementUsage, settings.replacementsEnabled {
+            for r in settings.replacements where r.enabled && !r.phrase.isEmpty {
+                if raw.range(of: "\\b\(NSRegularExpression.escapedPattern(for: r.phrase))\\b",
+                             options: [.regularExpression, .caseInsensitive]) != nil {
+                    settings.replacementUsage[r.phrase, default: 0] += 1
+                }
+            }
+        }
         let wordCount = text.split(whereSeparator: \.isWhitespace).count
         if settings.discardShortWords > 0, wordCount <= settings.discardShortWords {
             text = ""
@@ -328,6 +438,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let voice = rule?.customPrompt.trimmingCharacters(in: .whitespaces), !voice.isEmpty {
             tone = .custom
             customPrompt = voice
+        }
+        // Per-app grammar fix: force a polish pass that only corrects
+        // grammar/spelling/punctuation — stacked onto the voice if one is set.
+        if rule?.grammar == true {
+            usePolish = true
+            let grammarNote = "Fix any grammar, spelling, and punctuation mistakes; do not otherwise change the wording, meaning, or tone."
+            if tone == .custom, !customPrompt.isEmpty {
+                customPrompt += " " + grammarNote
+            } else {
+                tone = .custom
+                customPrompt = grammarNote
+            }
         }
         if settings.polishMinWords > 0, wordCount < settings.polishMinWords {
             usePolish = false // too short to be worth the round-trip
@@ -360,12 +482,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastInsertedText = nil   // a clipboard copy isn't undoable
         } else {
             var out = text
+            if settings.prefixEnabled, !settings.prefixText.isEmpty {
+                out = TextCleaner.expandVariables(settings.prefixText) + out
+            }
+            if settings.timestampPrefix {
+                let tf = DateFormatter(); tf.timeStyle = .short
+                out = "[\(tf.string(from: Date()))] " + out
+            }
+            if settings.signatureEnabled, !settings.signatureText.isEmpty {
+                out += TextCleaner.expandVariables(settings.signatureText)
+            }
             if settings.leadingSpace { out = " " + out }
             if settings.trailingNewline { out += "\n" }
             else if settings.trailingSpace { out += " " }
             if settings.alwaysCopy { Inserter.copyOnly(text) }
             Inserter.insert(out)
             lastInsertedText = out
+            undoStack.append(out)
+            if undoStack.count > max(1, settings.undoDepth) { undoStack.removeFirst() }
         }
         let wordsBeforeGoal = settings.todayWords
         let unlocked = settings.record(
@@ -450,6 +584,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var title = ""
         if paused { title += " ⏸" }
         if settings.showMenuBarCount, settings.todayWords > 0 { title += " \(settings.todayWords)" }
+        if settings.showMenuBarChars, settings.totalChars > 0 { title += " \(settings.totalChars / 1000)k" }
         if settings.showMenuBarStreak, settings.streak() >= 2 { title += " 🔥\(settings.streak())" }
         if !title.isEmpty {
             statusItem.button?.title = title
@@ -562,7 +697,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let langParent = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
         let langMenu = NSMenu()
         for (id, name) in GeneralPane.languages {
-            let item = NSMenuItem(title: name, action: #selector(switchLanguage(_:)), keyEquivalent: "")
+            let title = GeneralPane.onDeviceLocales.contains(id) ? name : "\(name)  ☁︎"
+            let item = NSMenuItem(title: title, action: #selector(switchLanguage(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = id
             item.state = settings.localeID == id ? .on : .off
@@ -695,6 +831,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Picks a skin based on the day of the year (when auto-rotate is on),
+    /// once per calendar day.
+    private func rotateSkinIfDue() {
+        guard settings.skinAutoRotate else { return }
+        let d = UserDefaults.standard
+        let today = AppSettings.dayKey(Date())
+        guard d.string(forKey: "lastSkinRotate") != today else { return }
+        d.set(today, forKey: "lastSkinRotate")
+        let choices = AppSkin.allCases.filter { $0 != .custom }
+        let doy = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
+        settings.skin = choices[doy % choices.count]
+    }
+
+    /// Writes the day's transcripts to Application Support once per day.
+    private func autoExportTodayIfDue() {
+        guard settings.autoExportDaily else { return }
+        let d = UserDefaults.standard
+        let today = AppSettings.dayKey(Date())
+        guard d.string(forKey: "lastDailyExport") != today else { return }
+        // Export *yesterday's* transcripts (today's aren't done yet).
+        let cal = Calendar.current
+        let items = settings.history.filter {
+            cal.isDateInYesterday($0.date)
+        }
+        guard !items.isEmpty else { d.set(today, forKey: "lastDailyExport"); return }
+        let fm = FileManager.default
+        guard let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        let dir = base.appendingPathComponent("Murmur/Transcripts", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let yKey = AppSettings.dayKey(cal.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+        let body = items.map(\.text).joined(separator: "\n\n")
+        try? body.write(to: dir.appendingPathComponent("\(yKey).txt"),
+                        atomically: true, encoding: .utf8)
+        d.set(today, forKey: "lastDailyExport")
+    }
+
     @objc private func dictateToClipboard() {
         guard phase == .idle else { return }
         forceClipboardOnce = true
@@ -762,13 +934,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Deletes the most recently inserted text by sending one backspace per
     /// character — assumes the cursor is still where the insert landed.
     @objc private func undoLastInsert() {
-        guard let text = lastInsertedText, !text.isEmpty, AXIsProcessTrusted() else { return }
+        // Pop the newest insert off the multi-level stack.
+        let text = undoStack.popLast() ?? lastInsertedText
+        guard let text, !text.isEmpty, AXIsProcessTrusted() else { return }
         let src = CGEventSource(stateID: .combinedSessionState)
         for _ in 0..<text.count {
             CGEvent(keyboardEventSource: src, virtualKey: 51, keyDown: true)?.post(tap: .cghidEventTap)
             CGEvent(keyboardEventSource: src, virtualKey: 51, keyDown: false)?.post(tap: .cghidEventTap)
         }
-        lastInsertedText = nil
+        lastInsertedText = undoStack.last
         rebuildMenu()
     }
 

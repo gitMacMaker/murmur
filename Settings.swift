@@ -297,6 +297,18 @@ enum AppSkin: String, CaseIterable, Identifiable {
          cyber, storm, pumpkin
     // Spec-driven — light
     case ice, lavender, mint, sand, rose, linen, honey
+    // v2.7 wave — dark
+    case crimson, royal, emerald, copper, steel, plum, abyss, aurora, indigo, jade,
+         carbon, wine, cocoa, navy, moss, graphite, amethyst, ember, teal, sapphire,
+         onyx, bronze, cosmos, shadow
+    // v2.7 wave — light
+    case cloud, seafoam, blush, butter, lilac, peach, sage, sky, cream, pistachio,
+         pearl, chambray, cotton, fog, matcha, orchid
+    // v2.7 wave 2 — the road to 100
+    case cobalt, scarlet, mustard, velvet, arctic, terracotta, eggplant, seaweed,
+         noir, petrol, sienna, galaxy, hunter, merlot, gunmetal, blackberry, tangerine
+    case vanilla, rosewater, glacier, meadow, sandstone, periwinkle, shell,
+         porcelain, lemon, flamingo, dove, julep
     // User-built in the Skin Studio
     case custom
     var id: String { rawValue }
@@ -349,6 +361,79 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .rose: return .light(0.985, 0.94, 0.945, ink: Color(red: 0.80, green: 0.36, blue: 0.48))
         case .linen: return .light(0.955, 0.95, 0.94, ink: Color(red: 0.45, green: 0.42, blue: 0.40), radius: 14)
         case .honey: return .light(0.99, 0.96, 0.87, ink: Color(red: 0.80, green: 0.58, blue: 0.15))
+        // v2.7 darks
+        case .crimson: return .dark(0.12, 0.02, 0.03, ink: Color(red: 0.98, green: 0.35, blue: 0.35))
+        case .royal: return .dark(0.04, 0.06, 0.16, ink: Color(red: 0.85, green: 0.70, blue: 0.30))
+        case .emerald: return .dark(0.02, 0.10, 0.07, ink: Color(red: 0.30, green: 0.90, blue: 0.60))
+        case .copper: return .dark(0.10, 0.06, 0.04, ink: Color(red: 0.85, green: 0.55, blue: 0.35))
+        case .steel: return .dark(0.10, 0.11, 0.13, ink: Color(red: 0.75, green: 0.80, blue: 0.88), radius: 12)
+        case .plum: return .dark(0.10, 0.04, 0.09, ink: Color(red: 0.90, green: 0.50, blue: 0.80))
+        case .abyss: return .dark(0.015, 0.015, 0.025, ink: Color(red: 0.50, green: 0.55, blue: 0.60))
+        case .aurora: return .dark(0.03, 0.08, 0.10, ink: Color(red: 0.40, green: 0.95, blue: 0.75))
+        case .indigo: return .dark(0.05, 0.04, 0.14, ink: Color(red: 0.55, green: 0.50, blue: 0.95))
+        case .jade: return .dark(0.03, 0.09, 0.08, ink: Color(red: 0.35, green: 0.85, blue: 0.70))
+        case .carbon: return .dark(0.07, 0.07, 0.07, ink: Color(white: 0.88), font: "Menlo", radius: 8)
+        case .wine: return .dark(0.10, 0.03, 0.06, ink: Color(red: 0.90, green: 0.45, blue: 0.60))
+        case .cocoa: return .dark(0.08, 0.055, 0.045, ink: Color(red: 0.80, green: 0.65, blue: 0.55))
+        case .navy: return .dark(0.03, 0.05, 0.10, ink: Color(red: 0.50, green: 0.70, blue: 0.95))
+        case .moss: return .dark(0.06, 0.08, 0.04, ink: Color(red: 0.65, green: 0.80, blue: 0.45))
+        case .graphite: return .dark(0.08, 0.08, 0.09, ink: Color(red: 0.62, green: 0.64, blue: 0.68), radius: 14)
+        case .amethyst: return .dark(0.07, 0.04, 0.11, ink: Color(red: 0.75, green: 0.60, blue: 0.98))
+        case .ember: return .dark(0.09, 0.05, 0.02, ink: Color(red: 0.95, green: 0.60, blue: 0.20))
+        case .teal: return .dark(0.02, 0.08, 0.09, ink: Color(red: 0.30, green: 0.85, blue: 0.85))
+        case .sapphire: return .dark(0.03, 0.05, 0.12, ink: Color(red: 0.40, green: 0.60, blue: 1.0))
+        case .onyx: return .dark(0.04, 0.04, 0.05, ink: Color(red: 0.80, green: 0.75, blue: 0.90))
+        case .bronze: return .dark(0.09, 0.07, 0.04, ink: Color(red: 0.80, green: 0.62, blue: 0.30))
+        case .cosmos: return .dark(0.05, 0.03, 0.10, ink: Color(red: 0.85, green: 0.55, blue: 0.95))
+        case .shadow: return .dark(0.06, 0.06, 0.08, ink: Color(red: 0.55, green: 0.60, blue: 0.75))
+        // v2.7 lights
+        case .cloud: return .light(0.96, 0.97, 0.98, ink: Color(red: 0.45, green: 0.55, blue: 0.68))
+        case .seafoam: return .light(0.92, 0.975, 0.96, ink: Color(red: 0.20, green: 0.60, blue: 0.55))
+        case .blush: return .light(0.99, 0.95, 0.94, ink: Color(red: 0.85, green: 0.45, blue: 0.40))
+        case .butter: return .light(0.995, 0.975, 0.90, ink: Color(red: 0.75, green: 0.60, blue: 0.10))
+        case .lilac: return .light(0.965, 0.95, 0.99, ink: Color(red: 0.60, green: 0.45, blue: 0.85))
+        case .peach: return .light(0.995, 0.955, 0.92, ink: Color(red: 0.90, green: 0.50, blue: 0.30))
+        case .sage: return .light(0.945, 0.96, 0.93, ink: Color(red: 0.45, green: 0.58, blue: 0.40))
+        case .sky: return .light(0.94, 0.965, 0.99, ink: Color(red: 0.35, green: 0.60, blue: 0.90))
+        case .cream: return .light(0.98, 0.965, 0.94, ink: Color(red: 0.60, green: 0.50, blue: 0.35), font: "Georgia")
+        case .pistachio: return .light(0.955, 0.975, 0.92, ink: Color(red: 0.50, green: 0.65, blue: 0.30))
+        case .pearl: return .light(0.97, 0.965, 0.96, ink: Color(red: 0.55, green: 0.50, blue: 0.55))
+        case .chambray: return .light(0.945, 0.955, 0.975, ink: Color(red: 0.40, green: 0.50, blue: 0.70))
+        case .cotton: return .light(0.985, 0.975, 0.985, ink: Color(red: 0.70, green: 0.50, blue: 0.75))
+        case .fog: return .light(0.955, 0.955, 0.955, ink: Color(red: 0.50, green: 0.50, blue: 0.52), radius: 14)
+        case .matcha: return .light(0.94, 0.955, 0.90, ink: Color(red: 0.45, green: 0.55, blue: 0.25))
+        case .orchid: return .light(0.98, 0.945, 0.975, ink: Color(red: 0.75, green: 0.40, blue: 0.70))
+        // Wave 2 — darks
+        case .cobalt: return .dark(0.02, 0.06, 0.14, ink: Color(red: 0.35, green: 0.55, blue: 0.98))
+        case .scarlet: return .dark(0.11, 0.03, 0.02, ink: Color(red: 1.0, green: 0.40, blue: 0.25))
+        case .mustard: return .dark(0.09, 0.08, 0.03, ink: Color(red: 0.90, green: 0.75, blue: 0.25))
+        case .velvet: return .dark(0.08, 0.03, 0.07, ink: Color(red: 0.85, green: 0.45, blue: 0.75))
+        case .arctic: return .dark(0.05, 0.07, 0.09, ink: Color(red: 0.80, green: 0.90, blue: 0.98))
+        case .terracotta: return .dark(0.10, 0.055, 0.04, ink: Color(red: 0.88, green: 0.55, blue: 0.40))
+        case .eggplant: return .dark(0.07, 0.04, 0.08, ink: Color(red: 0.70, green: 0.50, blue: 0.85))
+        case .seaweed: return .dark(0.03, 0.07, 0.06, ink: Color(red: 0.45, green: 0.75, blue: 0.60))
+        case .noir: return .dark(0.05, 0.045, 0.05, ink: Color(red: 0.85, green: 0.70, blue: 0.75), font: "Georgia")
+        case .petrol: return .dark(0.02, 0.07, 0.08, ink: Color(red: 0.35, green: 0.75, blue: 0.80))
+        case .sienna: return .dark(0.09, 0.05, 0.035, ink: Color(red: 0.85, green: 0.50, blue: 0.30))
+        case .galaxy: return .dark(0.04, 0.03, 0.09, ink: Color(red: 0.60, green: 0.55, blue: 1.0))
+        case .hunter: return .dark(0.03, 0.07, 0.04, ink: Color(red: 0.40, green: 0.80, blue: 0.50))
+        case .merlot: return .dark(0.09, 0.02, 0.04, ink: Color(red: 0.95, green: 0.40, blue: 0.50))
+        case .gunmetal: return .dark(0.075, 0.08, 0.085, ink: Color(red: 0.70, green: 0.75, blue: 0.80), radius: 10)
+        case .blackberry: return .dark(0.06, 0.03, 0.08, ink: Color(red: 0.80, green: 0.55, blue: 0.90))
+        case .tangerine: return .dark(0.10, 0.06, 0.02, ink: Color(red: 1.0, green: 0.65, blue: 0.25))
+        // Wave 2 — lights
+        case .vanilla: return .light(0.995, 0.985, 0.955, ink: Color(red: 0.65, green: 0.55, blue: 0.35))
+        case .rosewater: return .light(0.99, 0.955, 0.96, ink: Color(red: 0.80, green: 0.50, blue: 0.55))
+        case .glacier: return .light(0.94, 0.97, 0.985, ink: Color(red: 0.30, green: 0.55, blue: 0.75))
+        case .meadow: return .light(0.94, 0.975, 0.925, ink: Color(red: 0.40, green: 0.65, blue: 0.35))
+        case .sandstone: return .light(0.97, 0.945, 0.90, ink: Color(red: 0.65, green: 0.50, blue: 0.30))
+        case .periwinkle: return .light(0.955, 0.955, 0.995, ink: Color(red: 0.50, green: 0.50, blue: 0.90))
+        case .shell: return .light(0.99, 0.965, 0.95, ink: Color(red: 0.75, green: 0.55, blue: 0.45))
+        case .porcelain: return .light(0.975, 0.975, 0.97, ink: Color(red: 0.50, green: 0.55, blue: 0.60))
+        case .lemon: return .light(0.995, 0.99, 0.92, ink: Color(red: 0.72, green: 0.66, blue: 0.12))
+        case .flamingo: return .light(0.995, 0.94, 0.95, ink: Color(red: 0.92, green: 0.42, blue: 0.55))
+        case .dove: return .light(0.96, 0.96, 0.965, ink: Color(red: 0.55, green: 0.55, blue: 0.60))
+        case .julep: return .light(0.945, 0.985, 0.955, ink: Color(red: 0.30, green: 0.65, blue: 0.50))
         default: return nil
         }
     }
@@ -407,6 +492,7 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .linen: return "newspaper"
         case .honey: return "hexagon"
         case .custom: return "paintpalette"
+        default: return "circle.lefthalf.filled"
         }
     }
 }
@@ -626,10 +712,13 @@ struct AppRule: Codable, Identifiable, Equatable {
     var localeID: String?
     /// True = Murmur's hotkey is ignored while this app is frontmost.
     var blocked: Bool = false
+    /// True = force an AI grammar/spelling fix pass in this app (even when
+    /// polish is globally off), without changing wording or tone.
+    var grammar: Bool?
 
     init(appName: String, tone: PolishTone = .clean, ocase: OutputCase = .asSpoken,
          polish: Bool? = nil, customPrompt: String = "", localeID: String? = nil,
-         blocked: Bool = false) {
+         blocked: Bool = false, grammar: Bool? = nil) {
         self.appName = appName
         self.tone = tone
         self.ocase = ocase
@@ -637,6 +726,7 @@ struct AppRule: Codable, Identifiable, Equatable {
         self.customPrompt = customPrompt
         self.localeID = localeID
         self.blocked = blocked
+        self.grammar = grammar
     }
 
     // Manual decoding so rules saved before newer fields existed still load.
@@ -650,6 +740,7 @@ struct AppRule: Codable, Identifiable, Equatable {
         customPrompt = try c.decodeIfPresent(String.self, forKey: .customPrompt) ?? ""
         localeID = try c.decodeIfPresent(String.self, forKey: .localeID)
         blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
+        grammar = try c.decodeIfPresent(Bool.self, forKey: .grammar)
     }
 }
 
@@ -704,6 +795,13 @@ final class AppSettings: ObservableObject {
     @Published var hotkey: HotkeyKey {
         didSet { d.set((try? JSONEncoder().encode(hotkey)) ?? Data(), forKey: "hotkeyV2") }
     }
+    /// AI Command Mode — hold this key, speak an instruction, and Murmur
+    /// rewrites the current selection (or generates text at the cursor).
+    @Published var commandHotkey: HotkeyKey {
+        didSet { d.set((try? JSONEncoder().encode(commandHotkey)) ?? Data(), forKey: "cmdHotkeyV2") }
+    }
+    @Published var commandModeEnabled: Bool { didSet { d.set(commandModeEnabled, forKey: "cmdModeOn") } }
+    @Published var autoLearnVocab: Bool { didSet { d.set(autoLearnVocab, forKey: "autoLearnVocab") } }
     @Published var accentHue: Double { didSet { d.set(accentHue, forKey: "accentHue") } }
     @Published var accentSat: Double { didSet { d.set(accentSat, forKey: "accentSat") } }
     var accentColor: Color {
@@ -718,6 +816,12 @@ final class AppSettings: ObservableObject {
             : NSColor(hue: accentHue, saturation: accentSat, brightness: 1.0, alpha: 1)
         let luminance = 0.299 * base.redComponent + 0.587 * base.greenComponent + 0.114 * base.blueComponent
         return luminance > 0.66 ? Color(white: 0.12) : .white
+    }
+
+    /// Secondary accent (for gradient waveforms / accent bars).
+    var accentColor2: Color {
+        accentGradient ? Color(hue: accentHue2, saturation: accentSat, brightness: 1.0)
+                       : accentColor
     }
 
     /// Custom pill background color parsed from pillBgHex ("" = default look).
@@ -1024,6 +1128,61 @@ final class AppSettings: ObservableObject {
     @Published var historyDefaultFilter: Int { didSet { d.set(historyDefaultFilter, forKey: "histDefaultFilter") } }
     @Published var exportMetadata: Bool { didSet { d.set(exportMetadata, forKey: "exportMeta") } }
 
+    // v2.7 — General
+    @Published var signatureEnabled: Bool { didSet { d.set(signatureEnabled, forKey: "sigOn") } }
+    @Published var signatureText: String { didSet { d.set(signatureText, forKey: "sigText") } }
+    @Published var prefixEnabled: Bool { didSet { d.set(prefixEnabled, forKey: "prefixOn") } }
+    @Published var prefixText: String { didSet { d.set(prefixText, forKey: "prefixText") } }
+    @Published var stripMarkdownOutput: Bool { didSet { d.set(stripMarkdownOutput, forKey: "stripMd") } }
+    @Published var collapseBlankLines: Bool { didSet { d.set(collapseBlankLines, forKey: "collapseBlank") } }
+    @Published var properNouns: [String] { didSet { d.set(properNouns, forKey: "properNouns") } }
+    @Published var doubleTapHandsFree: Bool { didSet { d.set(doubleTapHandsFree, forKey: "dblTap") } }
+    @Published var polishRetry: Bool { didSet { d.set(polishRetry, forKey: "polishRetry") } }
+    @Published var errorSound: Bool { didSet { d.set(errorSound, forKey: "errSound") } }
+    @Published var autoLowercaseFirst: Bool { didSet { d.set(autoLowercaseFirst, forKey: "lcFirst") } }
+    @Published var maxWordsPerInsert: Int { didSet { d.set(maxWordsPerInsert, forKey: "maxWords") } }
+    @Published var maxRecordWords: Int { didSet { d.set(maxRecordWords, forKey: "maxRecWords") } }
+    @Published var showMenuBarChars: Bool { didSet { d.set(showMenuBarChars, forKey: "menuChars") } }
+    @Published var ensureSentenceSpacing: Bool { didSet { d.set(ensureSentenceSpacing, forKey: "sentSpace") } }
+    @Published var undoDepth: Int { didSet { d.set(undoDepth, forKey: "undoDepth") } }
+    @Published var timestampPrefix: Bool { didSet { d.set(timestampPrefix, forKey: "tsPrefix") } }
+    @Published var capitalizeAfterColon: Bool { didSet { d.set(capitalizeAfterColon, forKey: "capColon") } }
+    @Published var trimSurroundingQuotes: Bool { didSet { d.set(trimSurroundingQuotes, forKey: "trimQuotes") } }
+    @Published var greetingStyle: Int { didSet { d.set(greetingStyle, forKey: "greetStyle") } }
+    // v2.7 — Dictionary
+    @Published var replacementUsage: [String: Int] { didSet { d.set(replacementUsage, forKey: "replUsage") } }
+    @Published var trackReplacementUsage: Bool { didSet { d.set(trackReplacementUsage, forKey: "trackRepl") } }
+    @Published var showSnippetIndex: Bool { didSet { d.set(showSnippetIndex, forKey: "snipIndex") } }
+    @Published var commandWord: String { didSet { d.set(commandWord, forKey: "cmdWord") } }
+    // v2.7 — Appearance
+    @Published var pillMinWidth: Double { didSet { d.set(pillMinWidth, forKey: "pillMinW") } }
+    @Published var pillOffsetY: Double { didSet { d.set(pillOffsetY, forKey: "pillOffY") } }
+    @Published var waveMirror: Bool { didSet { d.set(waveMirror, forKey: "waveMirror") } }
+    @Published var pillAppearScale: Double { didSet { d.set(pillAppearScale, forKey: "appearScale") } }
+    @Published var dimWhenIdle: Bool { didSet { d.set(dimWhenIdle, forKey: "dimIdle") } }
+    @Published var accentGradient: Bool { didSet { d.set(accentGradient, forKey: "accentGrad") } }
+    @Published var accentHue2: Double { didSet { d.set(accentHue2, forKey: "accentHue2") } }
+    @Published var pillBlur: Bool { didSet { d.set(pillBlur, forKey: "pillBlur") } }
+    @Published var processingLabel: String { didSet { d.set(processingLabel, forKey: "procLabel") } }
+    @Published var doneLabel: String { didSet { d.set(doneLabel, forKey: "doneLabel") } }
+    @Published var listeningLabel: String { didSet { d.set(listeningLabel, forKey: "listenLabel") } }
+    @Published var wordCountBadge: Bool { didSet { d.set(wordCountBadge, forKey: "wcBadge") } }
+    @Published var monospaceTranscript: Bool { didSet { d.set(monospaceTranscript, forKey: "monoTranscript") } }
+    @Published var sidebarAccentBar: Bool { didSet { d.set(sidebarAccentBar, forKey: "sideAccentBar") } }
+    @Published var animatedGradientBg: Bool { didSet { d.set(animatedGradientBg, forKey: "animBg") } }
+    @Published var skinAutoRotate: Bool { didSet { d.set(skinAutoRotate, forKey: "skinRotate") } }
+    // v2.7 — Stats
+    @Published var statsGoalRing: Bool { didSet { d.set(statsGoalRing, forKey: "goalRing") } }
+    @Published var statsWeekStart: Int { didSet { d.set(statsWeekStart, forKey: "weekStart") } }
+    @Published var lifetimeSince: Double { didSet { d.set(lifetimeSince, forKey: "lifeSince") } }
+    @Published var wpmGoal: Int { didSet { d.set(wpmGoal, forKey: "wpmGoal") } }
+    // v2.7 — History
+    @Published var historyFontSize: Double { didSet { d.set(historyFontSize, forKey: "histFont") } }
+    @Published var historyShowSeconds: Bool { didSet { d.set(historyShowSeconds, forKey: "histSecs") } }
+    @Published var historyMarkFavorites: [String] { didSet { d.set(historyMarkFavorites, forKey: "histFavs") } }
+    @Published var autoExportDaily: Bool { didSet { d.set(autoExportDaily, forKey: "autoExport") } }
+    @Published var historyGroupByApp: Bool { didSet { d.set(historyGroupByApp, forKey: "histGroupApp") } }
+
     var minutesSaved: Double { Double(totalWords) * (1.0 / 40.0 - 1.0 / 150.0) }
 
     /// Records a delivered dictation and returns any newly unlocked achievements.
@@ -1188,6 +1347,28 @@ final class AppSettings: ObservableObject {
             var apiModel, statusSymbolName, glowColorHex: String?
             var excludedApps, starterWords, doubledWhitelist: [String]?
         }
+
+        /// v2.7 additions.
+        var extra4: Extra4?
+
+        struct Extra4: Codable {
+            var signatureEnabled, prefixEnabled, stripMarkdownOutput, collapseBlankLines,
+                doubleTapHandsFree, polishRetry, errorSound, autoLowercaseFirst,
+                showMenuBarChars, ensureSentenceSpacing, timestampPrefix, capitalizeAfterColon,
+                trimSurroundingQuotes, trackReplacementUsage, showSnippetIndex, waveMirror,
+                dimWhenIdle, accentGradient, pillBlur, wordCountBadge, monospaceTranscript,
+                sidebarAccentBar, animatedGradientBg, skinAutoRotate, statsGoalRing,
+                historyShowSeconds, autoExportDaily, historyGroupByApp: Bool?
+            var pillMinWidth, pillOffsetY, pillAppearScale, accentHue2, lifetimeSince,
+                historyFontSize: Double?
+            var maxWordsPerInsert, maxRecordWords, undoDepth, greetingStyle, statsWeekStart,
+                wpmGoal: Int?
+            var signatureText, prefixText, commandWord, processingLabel, doneLabel,
+                listeningLabel: String?
+            var properNouns, historyMarkFavorites: [String]?
+            var commandModeEnabled, autoLearnVocab: Bool?
+            var commandHotkey: HotkeyKey?
+        }
     }
 
     func exportBackup() throws -> Data {
@@ -1293,7 +1474,34 @@ final class AppSettings: ObservableObject {
                 historyDefaultFilter: historyDefaultFilter,
                 apiModel: apiModel, statusSymbolName: statusSymbolName,
                 glowColorHex: glowColorHex, excludedApps: excludedApps,
-                starterWords: starterWords, doubledWhitelist: doubledWhitelist))
+                starterWords: starterWords, doubledWhitelist: doubledWhitelist),
+            extra4: Backup.Extra4(
+                signatureEnabled: signatureEnabled, prefixEnabled: prefixEnabled,
+                stripMarkdownOutput: stripMarkdownOutput, collapseBlankLines: collapseBlankLines,
+                doubleTapHandsFree: doubleTapHandsFree, polishRetry: polishRetry,
+                errorSound: errorSound, autoLowercaseFirst: autoLowercaseFirst,
+                showMenuBarChars: showMenuBarChars, ensureSentenceSpacing: ensureSentenceSpacing,
+                timestampPrefix: timestampPrefix, capitalizeAfterColon: capitalizeAfterColon,
+                trimSurroundingQuotes: trimSurroundingQuotes,
+                trackReplacementUsage: trackReplacementUsage, showSnippetIndex: showSnippetIndex,
+                waveMirror: waveMirror, dimWhenIdle: dimWhenIdle, accentGradient: accentGradient,
+                pillBlur: pillBlur, wordCountBadge: wordCountBadge,
+                monospaceTranscript: monospaceTranscript, sidebarAccentBar: sidebarAccentBar,
+                animatedGradientBg: animatedGradientBg, skinAutoRotate: skinAutoRotate,
+                statsGoalRing: statsGoalRing, historyShowSeconds: historyShowSeconds,
+                autoExportDaily: autoExportDaily, historyGroupByApp: historyGroupByApp,
+                pillMinWidth: pillMinWidth, pillOffsetY: pillOffsetY,
+                pillAppearScale: pillAppearScale, accentHue2: accentHue2,
+                lifetimeSince: lifetimeSince, historyFontSize: historyFontSize,
+                maxWordsPerInsert: maxWordsPerInsert, maxRecordWords: maxRecordWords,
+                undoDepth: undoDepth, greetingStyle: greetingStyle,
+                statsWeekStart: statsWeekStart, wpmGoal: wpmGoal,
+                signatureText: signatureText, prefixText: prefixText, commandWord: commandWord,
+                processingLabel: processingLabel, doneLabel: doneLabel,
+                listeningLabel: listeningLabel, properNouns: properNouns,
+                historyMarkFavorites: historyMarkFavorites,
+                commandModeEnabled: commandModeEnabled, autoLearnVocab: autoLearnVocab,
+                commandHotkey: commandHotkey))
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try enc.encode(b)
@@ -1486,6 +1694,59 @@ final class AppSettings: ObservableObject {
             if let v = e.starterWords { starterWords = v }
             if let v = e.doubledWhitelist { doubledWhitelist = v }
         }
+        if let e = b.extra4 {
+            if let v = e.signatureEnabled { signatureEnabled = v }
+            if let v = e.prefixEnabled { prefixEnabled = v }
+            if let v = e.stripMarkdownOutput { stripMarkdownOutput = v }
+            if let v = e.collapseBlankLines { collapseBlankLines = v }
+            if let v = e.doubleTapHandsFree { doubleTapHandsFree = v }
+            if let v = e.polishRetry { polishRetry = v }
+            if let v = e.errorSound { errorSound = v }
+            if let v = e.autoLowercaseFirst { autoLowercaseFirst = v }
+            if let v = e.showMenuBarChars { showMenuBarChars = v }
+            if let v = e.ensureSentenceSpacing { ensureSentenceSpacing = v }
+            if let v = e.timestampPrefix { timestampPrefix = v }
+            if let v = e.capitalizeAfterColon { capitalizeAfterColon = v }
+            if let v = e.trimSurroundingQuotes { trimSurroundingQuotes = v }
+            if let v = e.trackReplacementUsage { trackReplacementUsage = v }
+            if let v = e.showSnippetIndex { showSnippetIndex = v }
+            if let v = e.waveMirror { waveMirror = v }
+            if let v = e.dimWhenIdle { dimWhenIdle = v }
+            if let v = e.accentGradient { accentGradient = v }
+            if let v = e.pillBlur { pillBlur = v }
+            if let v = e.wordCountBadge { wordCountBadge = v }
+            if let v = e.monospaceTranscript { monospaceTranscript = v }
+            if let v = e.sidebarAccentBar { sidebarAccentBar = v }
+            if let v = e.animatedGradientBg { animatedGradientBg = v }
+            if let v = e.skinAutoRotate { skinAutoRotate = v }
+            if let v = e.statsGoalRing { statsGoalRing = v }
+            if let v = e.historyShowSeconds { historyShowSeconds = v }
+            if let v = e.autoExportDaily { autoExportDaily = v }
+            if let v = e.historyGroupByApp { historyGroupByApp = v }
+            if let v = e.pillMinWidth { pillMinWidth = v }
+            if let v = e.pillOffsetY { pillOffsetY = v }
+            if let v = e.pillAppearScale { pillAppearScale = v }
+            if let v = e.accentHue2 { accentHue2 = v }
+            if let v = e.lifetimeSince { lifetimeSince = v }
+            if let v = e.historyFontSize { historyFontSize = v }
+            if let v = e.maxWordsPerInsert { maxWordsPerInsert = v }
+            if let v = e.maxRecordWords { maxRecordWords = v }
+            if let v = e.undoDepth { undoDepth = v }
+            if let v = e.greetingStyle { greetingStyle = v }
+            if let v = e.statsWeekStart { statsWeekStart = v }
+            if let v = e.wpmGoal { wpmGoal = v }
+            if let v = e.signatureText { signatureText = v }
+            if let v = e.prefixText { prefixText = v }
+            if let v = e.commandWord { commandWord = v }
+            if let v = e.processingLabel { processingLabel = v }
+            if let v = e.doneLabel { doneLabel = v }
+            if let v = e.listeningLabel { listeningLabel = v }
+            if let v = e.properNouns { properNouns = v }
+            if let v = e.historyMarkFavorites { historyMarkFavorites = v }
+            if let v = e.commandModeEnabled { commandModeEnabled = v }
+            if let v = e.autoLearnVocab { autoLearnVocab = v }
+            if let v = e.commandHotkey { commandHotkey = v }
+        }
     }
 
     func resetToDefaults() {
@@ -1501,6 +1762,32 @@ final class AppSettings: ObservableObject {
         showMenuBarCount = false; autoPunctuation = true
         dailyGoal = 0; pillOpacity = 0.94; tapThreshold = 0.35; silenceSeconds = 3.0
         // Stats, history, dictionary, and achievements are intentionally kept.
+    }
+
+    /// Auto-learns your vocabulary: mid-sentence capitalized words (likely
+    /// names/jargon) that recur 3+ times get promoted into the recognizer
+    /// hint list — Wispr-Flow-style "learns your unique words."
+    func learnVocabulary(from text: String) {
+        guard autoLearnVocab else { return }
+        let known = Set((vocabWords + replacements.map(\.phrase)).map { $0.lowercased() })
+        var counts = d.dictionary(forKey: "vocabCandidates") as? [String: Int] ?? [:]
+        // Skip the first word of each sentence (its capital isn't a signal).
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+        for sentence in sentences {
+            let words = sentence.split(whereSeparator: { $0 == " " || $0 == "," }).map(String.init)
+            for w in words.dropFirst() {
+                let clean = w.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+                guard clean.count > 2, let f = clean.first, f.isUppercase,
+                      !known.contains(clean.lowercased()) else { continue }
+                counts[clean, default: 0] += 1
+                if counts[clean]! >= 3, !vocabWords.contains(clean) {
+                    vocabWords.append(clean)
+                    counts[clean] = nil
+                }
+            }
+        }
+        if counts.count > 200 { counts = counts.filter { $0.value >= 2 } }
+        d.set(counts, forKey: "vocabCandidates")
     }
 
     static func dayKey(_ date: Date) -> String {
@@ -1622,6 +1909,14 @@ final class AppSettings: ObservableObject {
             default: hotkey = .rightOption
             }
         }
+        if let data = d.data(forKey: "cmdHotkeyV2"),
+           let k = try? JSONDecoder().decode(HotkeyKey.self, from: data) {
+            commandHotkey = k
+        } else {
+            commandHotkey = HotkeyKey(keyCode: 54, isModifier: true, name: "Right ⌘")
+        }
+        commandModeEnabled = d.object(forKey: "cmdModeOn") as? Bool ?? true
+        autoLearnVocab = d.bool(forKey: "autoLearnVocab")
         if d.object(forKey: "accentHue") != nil {
             accentHue = d.double(forKey: "accentHue")
             accentSat = d.double(forKey: "accentSat")
@@ -1836,6 +2131,55 @@ final class AppSettings: ObservableObject {
         historyCompactRows = d.bool(forKey: "histCompact")
         historyDefaultFilter = d.integer(forKey: "histDefaultFilter")
         exportMetadata = d.bool(forKey: "exportMeta")
+        signatureEnabled = d.bool(forKey: "sigOn")
+        signatureText = d.string(forKey: "sigText") ?? ""
+        prefixEnabled = d.bool(forKey: "prefixOn")
+        prefixText = d.string(forKey: "prefixText") ?? ""
+        stripMarkdownOutput = d.bool(forKey: "stripMd")
+        collapseBlankLines = d.object(forKey: "collapseBlank") as? Bool ?? true
+        properNouns = d.stringArray(forKey: "properNouns") ?? []
+        doubleTapHandsFree = d.object(forKey: "dblTap") as? Bool ?? true
+        polishRetry = d.object(forKey: "polishRetry") as? Bool ?? true
+        errorSound = d.object(forKey: "errSound") as? Bool ?? true
+        autoLowercaseFirst = d.bool(forKey: "lcFirst")
+        maxWordsPerInsert = d.integer(forKey: "maxWords")
+        maxRecordWords = d.integer(forKey: "maxRecWords")
+        showMenuBarChars = d.bool(forKey: "menuChars")
+        ensureSentenceSpacing = d.bool(forKey: "sentSpace")
+        undoDepth = d.object(forKey: "undoDepth") as? Int ?? 1
+        timestampPrefix = d.bool(forKey: "tsPrefix")
+        capitalizeAfterColon = d.bool(forKey: "capColon")
+        trimSurroundingQuotes = d.bool(forKey: "trimQuotes")
+        greetingStyle = d.integer(forKey: "greetStyle")
+        replacementUsage = d.dictionary(forKey: "replUsage") as? [String: Int] ?? [:]
+        trackReplacementUsage = d.object(forKey: "trackRepl") as? Bool ?? true
+        showSnippetIndex = d.bool(forKey: "snipIndex")
+        commandWord = d.string(forKey: "cmdWord") ?? ""
+        pillMinWidth = d.object(forKey: "pillMinW") as? Double ?? 130
+        pillOffsetY = d.double(forKey: "pillOffY")
+        waveMirror = d.bool(forKey: "waveMirror")
+        pillAppearScale = d.object(forKey: "appearScale") as? Double ?? 0.85
+        dimWhenIdle = d.bool(forKey: "dimIdle")
+        accentGradient = d.bool(forKey: "accentGrad")
+        accentHue2 = d.object(forKey: "accentHue2") as? Double ?? 0.55
+        pillBlur = d.object(forKey: "pillBlur") as? Bool ?? true
+        processingLabel = d.string(forKey: "procLabel") ?? ""
+        doneLabel = d.string(forKey: "doneLabel") ?? ""
+        listeningLabel = d.string(forKey: "listenLabel") ?? ""
+        wordCountBadge = d.object(forKey: "wcBadge") as? Bool ?? true
+        monospaceTranscript = d.bool(forKey: "monoTranscript")
+        sidebarAccentBar = d.object(forKey: "sideAccentBar") as? Bool ?? true
+        animatedGradientBg = d.bool(forKey: "animBg")
+        skinAutoRotate = d.bool(forKey: "skinRotate")
+        statsGoalRing = d.object(forKey: "goalRing") as? Bool ?? true
+        statsWeekStart = d.integer(forKey: "weekStart")
+        lifetimeSince = d.double(forKey: "lifeSince")
+        wpmGoal = d.integer(forKey: "wpmGoal")
+        historyFontSize = d.object(forKey: "histFont") as? Double ?? 12.5
+        historyShowSeconds = d.object(forKey: "histSecs") as? Bool ?? true
+        historyMarkFavorites = d.stringArray(forKey: "histFavs") ?? []
+        autoExportDaily = d.bool(forKey: "autoExport")
+        historyGroupByApp = d.bool(forKey: "histGroupApp")
         pinnedFirst = d.object(forKey: "pinnedFirst") as? Bool ?? true
         historyPaused = d.bool(forKey: "histPaused")
         excludeClipboardOnly = d.bool(forKey: "histNoClip")
@@ -1904,8 +2248,9 @@ struct SettingsRootView: View {
                 switch tab {
                 case 0: GeneralPane(settings: settings)
                 case 1: DictionaryPane(settings: settings)
-                case 2: AppearancePane(settings: settings)
-                case 3: StatsPane(settings: settings)
+                case 2: AppsPane(settings: settings)
+                case 3: AppearancePane(settings: settings)
+                case 4: StatsPane(settings: settings)
                 default: HistoryPane(settings: settings)
                 }
             }
@@ -1913,6 +2258,15 @@ struct SettingsRootView: View {
             .background {
                 ZStack {
                     p.bg
+                    if settings.animatedGradientBg {
+                        TimelineView(.animation) { context in
+                            let t = context.date.timeIntervalSinceReferenceDate
+                            RadialGradient(colors: [settings.accentColor.opacity(0.16), .clear],
+                                           center: UnitPoint(x: 0.5 + 0.35 * cos(t * 0.25),
+                                                             y: 0.35 + 0.25 * sin(t * 0.19)),
+                                           startRadius: 5, endRadius: 420)
+                        }
+                    }
                     SkinBackground(seed: 1)
                 }
             }
@@ -1938,9 +2292,10 @@ struct SettingsRootView: View {
 
             navItem(0, "slider.horizontal.3", "General")
             navItem(1, "character.book.closed", "Dictionary")
-            navItem(2, "paintbrush", "Appearance")
-            navItem(3, "chart.bar", "Stats")
-            navItem(4, "clock.arrow.circlepath", "History")
+            navItem(2, "macwindow", "Apps")
+            navItem(3, "paintbrush", "Appearance")
+            navItem(4, "chart.bar", "Stats")
+            navItem(5, "clock.arrow.circlepath", "History")
 
             Spacer()
 
@@ -1995,6 +2350,13 @@ struct SettingsRootView: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(selected ? settings.accentColor.opacity(0.13) : .clear)
             )
+            .overlay(alignment: .leading) {
+                if selected, settings.sidebarAccentBar {
+                    Capsule().fill(settings.accentColor)
+                        .frame(width: 3, height: 16)
+                        .offset(x: -6)
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
@@ -2057,6 +2419,31 @@ struct GeneralPane: View {
                      subtitle: "Start the next hands-free dictation right after each insert") {
                     Toggle("", isOn: $settings.chainMode)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+            }
+
+            SectionLabel(text: "Command mode")
+                .padding(.top, 6)
+            CardGroup {
+                PRow(title: "AI command key",
+                     subtitle: "Hold, speak an edit (“make this formal”, “fix grammar”), release — Claude rewrites your selected text in place") {
+                    Toggle("", isOn: $settings.commandModeEnabled)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                if settings.commandModeEnabled {
+                    RowDivider()
+                    PRow(title: "Command key",
+                         subtitle: "Different from your dictation key — needs AI polish (API key or Claude CLI)") {
+                        HStack(spacing: 6) {
+                            CommandKeyButton(settings: settings)
+                            if settings.commandHotkey.keyCode != 54 {
+                                Button("Reset") {
+                                    settings.commandHotkey = HotkeyKey(keyCode: 54, isModifier: true, name: "Right ⌘")
+                                }
+                                .buttonStyle(.borderless).font(.system(size: 12))
+                            }
+                        }
+                    }
                 }
             }
             if let warning = hotkeyWarning {
@@ -2204,6 +2591,77 @@ struct GeneralPane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Space after sentences",
+                     subtitle: "“a.Next” → “a. Next”") {
+                    Toggle("", isOn: $settings.ensureSentenceSpacing)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Collapse blank lines",
+                     subtitle: "Never more than one empty line in a row") {
+                    Toggle("", isOn: $settings.collapseBlankLines)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Capitalize after colon") {
+                    Toggle("", isOn: $settings.capitalizeAfterColon)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Trim surrounding quotes",
+                     subtitle: "Drops a matching pair of quotes wrapping the whole thing") {
+                    Toggle("", isOn: $settings.trimSurroundingQuotes)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Lowercase first letter",
+                     subtitle: "For lowercase-chat style") {
+                    Toggle("", isOn: $settings.autoLowercaseFirst)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Proper nouns",
+                     subtitle: "Comma-separated — always capitalized wherever they appear") {
+                    TextField("iPhone, GitHub, Anthropic…", text: Binding(
+                        get: { settings.properNouns.joined(separator: ", ") },
+                        set: { settings.properNouns = $0.components(separatedBy: ",")
+                            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                    .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 220)
+                }
+                RowDivider()
+                PRow(title: "Strip Markdown from polish",
+                     subtitle: "Removes **bold**, # headings, and bullets the model adds") {
+                    Toggle("", isOn: $settings.stripMarkdownOutput)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Retry polish on failure",
+                     subtitle: "Try once more if the model returns nothing") {
+                    Toggle("", isOn: $settings.polishRetry)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Cap words per insert",
+                     subtitle: "Truncate anything longer (0 = off)") {
+                    Picker("", selection: $settings.maxWordsPerInsert) {
+                        Text("Off").tag(0)
+                        Text("100").tag(100)
+                        Text("300").tag(300)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+                }
+                RowDivider()
+                PRow(title: "Auto-finish at word count",
+                     subtitle: "Stop recording once the transcript hits this many words") {
+                    Picker("", selection: $settings.maxRecordWords) {
+                        Text("Off").tag(0)
+                        Text("50").tag(50)
+                        Text("100").tag(100)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+                }
+                RowDivider()
                 PRow(title: "Drop trailing period") {
                     Toggle("", isOn: $settings.noTrailingPeriod)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
@@ -2271,15 +2729,15 @@ struct GeneralPane: View {
                 .padding(.top, 6)
             CardGroup {
                 PRow(title: "Language",
-                     subtitle: "On-device when the language supports it") {
+                     subtitle: "\(Self.languages.count) languages — ☁︎ ones use Apple's speech servers instead of staying on-device") {
                     Picker("", selection: $settings.localeID) {
                         ForEach(Self.languages, id: \.0) { id, name in
-                            Text(name).tag(id)
+                            Text(Self.onDeviceLocales.contains(id) ? name : "\(name)  ☁︎").tag(id)
                         }
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
-                    .frame(width: 170)
+                    .frame(width: 190)
                 }
                 RowDivider()
                 PRow(title: "Auto-punctuation",
@@ -2344,6 +2802,59 @@ struct GeneralPane: View {
                 PRow(title: "Add leading space",
                      subtitle: "For appending mid-sentence") {
                     Toggle("", isOn: $settings.leadingSpace)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Prefix text",
+                     subtitle: "Prepended to every insert — supports {greeting}, {date}, {app}") {
+                    HStack(spacing: 6) {
+                        TextField("e.g. {greeting} ", text: $settings.prefixText)
+                            .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 180)
+                        Toggle("", isOn: $settings.prefixEnabled)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Signature",
+                     subtitle: "Appended to every insert — supports variables") {
+                    HStack(spacing: 6) {
+                        TextField("e.g. \\n— sent via Murmur", text: $settings.signatureText)
+                            .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 180)
+                        Toggle("", isOn: $settings.signatureEnabled)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Timestamp prefix",
+                     subtitle: "Prepends [3:42 PM] to each insert") {
+                    Toggle("", isOn: $settings.timestampPrefix)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Double-tap for hands-free",
+                     subtitle: "Two quick taps of the hotkey latch hands-free mode") {
+                    Toggle("", isOn: $settings.doubleTapHandsFree)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Undo depth",
+                     subtitle: "How many past inserts “Undo Last Insert” can walk back") {
+                    Picker("", selection: $settings.undoDepth) {
+                        Text("1").tag(1)
+                        Text("5").tag(5)
+                        Text("10").tag(10)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 150)
+                }
+                RowDivider()
+                PRow(title: "Play sound on error") {
+                    Toggle("", isOn: $settings.errorSound)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Characters in menu bar",
+                     subtitle: "Lifetime character count (in thousands)") {
+                    Toggle("", isOn: $settings.showMenuBarChars)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
@@ -2648,17 +3159,25 @@ struct GeneralPane: View {
         try? settings.importBackup(data)
     }
 
-    /// Speech locales offered in the picker — the common ones Apple supports,
-    /// intersected with what this machine's recognizer actually offers.
+    /// Every speech locale this Mac's recognizer supports — no curation.
+    /// (Apple ships 60+; the old hand-picked list of 16 was an artificial cap.)
     static let languages: [(String, String)] = {
-        let wanted = ["en-US", "en-GB", "en-AU", "en-IN", "es-ES", "es-MX", "fr-FR",
-                      "de-DE", "it-IT", "pt-BR", "nl-NL", "sv-SE", "ja-JP", "ko-KR",
-                      "zh-CN", "hi-IN"]
-        let supported = Set(SFSpeechRecognizer.supportedLocales().map(\.identifier))
         let display = Locale(identifier: "en-US")
-        return wanted
-            .filter { supported.contains($0) || supported.contains($0.replacingOccurrences(of: "-", with: "_")) }
-            .map { ($0, display.localizedString(forIdentifier: $0) ?? $0) }
+        return SFSpeechRecognizer.supportedLocales()
+            .map { loc -> (String, String) in
+                let id = loc.identifier.replacingOccurrences(of: "_", with: "-")
+                return (id, display.localizedString(forIdentifier: id) ?? id)
+            }
+            .sorted { $0.1.localizedCaseInsensitiveCompare($1.1) == .orderedAscending }
+    }()
+
+    /// Locales that transcribe fully on-device. The rest fall back to Apple's
+    /// speech servers — worth knowing if you picked Murmur for privacy.
+    static let onDeviceLocales: Set<String> = {
+        Set(languages.compactMap { id, _ in
+            SFSpeechRecognizer(locale: Locale(identifier: id))?
+                .supportsOnDeviceRecognition == true ? id : nil
+        })
     }()
 
     private var hotkeyWarning: String? {
@@ -2723,6 +3242,45 @@ struct KeyCaptureButton: View {
                 let candidate = HotkeyKey(keyCode: event.keyCode, isModifier: true, name: name)
                 if let flag = candidate.modifierFlag, event.modifierFlags.contains(flag) {
                     settings.hotkey = candidate
+                    stopCapture()
+                }
+            }
+            return nil
+        }
+    }
+
+    private func stopCapture() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        capturing = false
+        KeyCaptureState.active = false
+    }
+}
+
+/// Captures a modifier key for AI Command Mode (modifier-only, so it can be
+/// held while speaking without also typing).
+struct CommandKeyButton: View {
+    @ObservedObject var settings: AppSettings
+    @State private var capturing = false
+    @State private var monitor: Any?
+
+    var body: some View {
+        Button(capturing ? "Hold a modifier…" : settings.commandHotkey.name) {
+            capturing ? stopCapture() : startCapture()
+        }
+        .buttonStyle(.bordered)
+        .tint(capturing ? .accentColor : nil)
+        .onDisappear { stopCapture() }
+    }
+
+    private func startCapture() {
+        capturing = true
+        KeyCaptureState.active = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged]) { event in
+            if let name = HotkeyKey.modifierName(for: event.keyCode) {
+                let candidate = HotkeyKey(keyCode: event.keyCode, isModifier: true, name: name)
+                if let flag = candidate.modifierFlag, event.modifierFlags.contains(flag) {
+                    settings.commandHotkey = candidate
                     stopCapture()
                 }
             }
@@ -2962,6 +3520,12 @@ struct DictionaryPane: View {
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 12.5))
                                 .foregroundStyle(p.text)
+                            if settings.showSnippetIndex,
+                               let n = settings.replacementUsage[item.phrase], n > 0 {
+                                Text("×\(n)")
+                                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(p.subtext)
+                            }
                             Button {
                                 settings.replacements.removeAll { $0.id == item.id }
                             } label: {
@@ -3091,6 +3655,23 @@ struct DictionaryPane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Track replacement usage",
+                     subtitle: "Count how often each phrase fires") {
+                    Toggle("", isOn: $settings.trackReplacementUsage)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Show usage counts",
+                     subtitle: "A ×N badge next to each replacement") {
+                    Toggle("", isOn: $settings.showSnippetIndex)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Reset usage counts") {
+                    Button("Reset") { settings.replacementUsage = [:] }
+                        .controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Keep list alphabetized",
                      subtitle: "Re-sorts automatically as you add") {
                     Toggle("", isOn: $settings.autoSortReplacements)
@@ -3149,6 +3730,12 @@ struct DictionaryPane: View {
                         }
                         .controlSize(.small)
                     }
+                }
+                RowDivider()
+                PRow(title: "Auto-learn vocabulary",
+                     subtitle: "Recurring names & jargon you dictate get added here automatically") {
+                    Toggle("", isOn: $settings.autoLearnVocab)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
             }
 
@@ -3282,84 +3869,151 @@ struct DictionaryPane: View {
                 }
             }
 
-            SectionLabel(text: "App rules")
+            Text("Per-app behavior — tones, grammar fixes, polish voices, and languages — lives in the Apps tab.")
+                .font(.system(size: 11))
+                .foregroundStyle(p.subtext)
+                .padding(.horizontal, 2)
                 .padding(.top, 6)
-            CardGroup {
-                if settings.appRules.isEmpty {
-                    Text("No rules yet — pick a tone and case that apply automatically when dictating into a matching app (e.g. “Mail” → Email tone).")
-                        .font(.system(size: 12))
-                        .foregroundStyle(p.subtext)
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach($settings.appRules) { $rule in
-                        if rule.id != settings.appRules.first?.id { RowDivider() }
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 10) {
-                                TextField("App name (e.g. Mail)", text: $rule.appName)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 12.5))
-                                    .foregroundStyle(p.text)
-                                    .frame(width: 130)
-                                Picker("", selection: $rule.tone) {
-                                    ForEach(PolishTone.allCases) { Text($0.label).tag($0) }
-                                }
-                                .pickerStyle(.menu)
-                                .labelsHidden()
-                                .frame(width: 90)
-                                Picker("", selection: $rule.ocase) {
-                                    ForEach(OutputCase.allCases) { Text($0.label).tag($0) }
-                                }
-                                .pickerStyle(.menu)
-                                .labelsHidden()
-                                .frame(width: 100)
-                                Picker("", selection: $rule.polish) {
-                                    Text("Polish: Auto").tag(Bool?.none)
-                                    Text("Polish: On").tag(Bool?.some(true))
-                                    Text("Polish: Off").tag(Bool?.some(false))
-                                }
-                                .pickerStyle(.menu)
-                                .labelsHidden()
-                                .frame(width: 105)
-                                .help("Override AI polish when dictating into this app")
-                                Spacer()
-                                Button {
-                                    settings.appRules.removeAll { $0.id == rule.id }
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(p.subtext.opacity(0.7))
-                                }
-                                .buttonStyle(.borderless)
-                            }
-                            HStack(spacing: 10) {
-                                TextField("Polish voice — e.g. “Casual with emojis” or “Formal British English”",
-                                          text: $rule.customPrompt)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.system(size: 11.5))
-                                    .help("How Claude should write in this app — overrides the tone when set")
-                                Picker("", selection: $rule.localeID) {
-                                    Text("Lang: Auto").tag(String?.none)
-                                    ForEach(GeneralPane.languages, id: \.0) { id, name in
-                                        Text(name).tag(String?.some(id))
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .labelsHidden()
-                                .frame(width: 110)
-                                .help("Recognition language for this app")
-                                Toggle("Block", isOn: $rule.blocked)
-                                    .toggleStyle(.checkbox)
+        }
+    }
+}
+
+// MARK: - Apps pane
+
+/// Per-app behavior: each rule is a card — grammar fixing, a polish voice,
+/// tone, case, language, and blocking, applied whenever you dictate into a
+/// matching app.
+struct AppsPane: View {
+    @ObservedObject var settings: AppSettings
+    @Environment(\.colorScheme) private var scheme
+
+    /// Names of regular running apps, for one-click rule creation.
+    private var runningAppNames: [String] {
+        let existing = Set(settings.appRules.map { $0.appName.lowercased() })
+        return Array(Set(
+            NSWorkspace.shared.runningApplications
+                .filter { $0.activationPolicy == .regular }
+                .compactMap(\.localizedName)
+        ))
+        .filter { $0 != "Murmur" && !existing.contains($0.lowercased()) }
+        .sorted()
+    }
+
+    var body: some View {
+        let p = Palette.of(scheme)
+        Pane(title: "Apps",
+             subtitle: "Murmur can talk differently in every app.") {
+            if settings.appRules.isEmpty {
+                CardGroup {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No app rules yet")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(p.text)
+                        Text("Add an app below and Murmur will adapt whenever you dictate into it — fix grammar in Mail, go casual with emojis in Slack, switch language in WhatsApp, or block dictation entirely in your password manager.")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(p.subtext)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            ForEach($settings.appRules) { $rule in
+                SectionLabel(text: rule.appName.isEmpty ? "New rule" : rule.appName)
+                    .padding(.top, 6)
+                CardGroup {
+                    PRow(title: "App",
+                         subtitle: "Matches when the frontmost app's name contains this") {
+                        HStack(spacing: 8) {
+                            TextField("e.g. Mail", text: $rule.appName)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 12))
+                                .frame(width: 150)
+                            Button {
+                                settings.appRules.removeAll { $0.id == rule.id }
+                            } label: {
+                                Image(systemName: "trash")
                                     .font(.system(size: 11))
                                     .foregroundStyle(p.subtext)
-                                    .help("Murmur's hotkey does nothing while this app is frontmost")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove this rule")
+                        }
+                    }
+                    RowDivider()
+                    PRow(title: "Fix grammar",
+                         subtitle: "AI corrects grammar, spelling, and punctuation here — wording stays yours") {
+                        Toggle("", isOn: Binding(
+                            get: { rule.grammar ?? false },
+                            set: { rule.grammar = $0 }
+                        ))
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Polish voice",
+                         subtitle: "How Claude writes in this app — overrides the tone") {
+                        TextField("e.g. Casual with emojis", text: $rule.customPrompt)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                            .frame(width: 220)
+                    }
+                    RowDivider()
+                    PRow(title: "Tone") {
+                        Picker("", selection: $rule.tone) {
+                            ForEach(PolishTone.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().frame(width: 250)
+                    }
+                    RowDivider()
+                    PRow(title: "AI polish") {
+                        Picker("", selection: $rule.polish) {
+                            Text("Auto").tag(Bool?.none)
+                            Text("On").tag(Bool?.some(true))
+                            Text("Off").tag(Bool?.some(false))
+                        }
+                        .pickerStyle(.segmented).labelsHidden().frame(width: 180)
+                    }
+                    RowDivider()
+                    PRow(title: "Output case") {
+                        Picker("", selection: $rule.ocase) {
+                            ForEach(OutputCase.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().frame(width: 250)
+                    }
+                    RowDivider()
+                    PRow(title: "Language",
+                         subtitle: "Recognition language just for this app") {
+                        Picker("", selection: $rule.localeID) {
+                            Text("Auto").tag(String?.none)
+                            ForEach(GeneralPane.languages, id: \.0) { id, name in
+                                Text(GeneralPane.onDeviceLocales.contains(id) ? name : "\(name)  ☁︎")
+                                    .tag(String?.some(id))
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .pickerStyle(.menu).labelsHidden().frame(width: 130)
+                    }
+                    RowDivider()
+                    PRow(title: "Block Murmur here",
+                         subtitle: "The hotkey does nothing while this app is frontmost") {
+                        Toggle("", isOn: $rule.blocked)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    if let stats = settings.appWords.first(where: {
+                        !rule.appName.isEmpty
+                            && $0.key.localizedCaseInsensitiveContains(rule.appName)
+                    }) {
+                        RowDivider()
+                        Text("\(stats.value.formatted()) words dictated into \(stats.key)")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(p.subtext)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
                     }
                 }
-                RowDivider()
+            }
+
+            HStack(spacing: 12) {
                 Button {
                     settings.appRules.append(AppRule(appName: ""))
                 } label: {
@@ -3368,9 +4022,19 @@ struct DictionaryPane: View {
                         .foregroundStyle(settings.accentColor)
                 }
                 .buttonStyle(.borderless)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                if !runningAppNames.isEmpty {
+                    Menu("Add Running App") {
+                        ForEach(runningAppNames, id: \.self) { name in
+                            Button(name) {
+                                settings.appRules.append(AppRule(appName: name))
+                            }
+                        }
+                    }
+                    .menuStyle(.borderlessButton).font(.system(size: 12)).fixedSize()
+                }
+                Spacer()
             }
+            .padding(.top, 6)
         }
     }
 }
@@ -3435,6 +4099,7 @@ struct AppearancePane: View {
     @ObservedObject var settings: AppSettings
     @Environment(\.colorScheme) private var scheme
     @State private var suppressRegen = false
+    @State private var subTab = 0   // 0 = Skins, 1 = Pill & Window
     @StateObject private var previewState = AppearancePane.makePreviewState()
     private let timer = Timer.publish(every: 0.09, on: .main, in: .common).autoconnect()
     @State private var t: Double = 0
@@ -3444,7 +4109,15 @@ struct AppearancePane: View {
         VStack(spacing: 0) {
         Pane(title: "Appearance",
              subtitle: "Make the dictation pill yours.") {
+            Picker("", selection: $subTab) {
+                Text("Skins (\(AppSkin.allCases.count))").tag(0)
+                Text("Pill & Window").tag(1)
+            }
+            .pickerStyle(.segmented).labelsHidden()
+
+            if subTab == 0 {
             SectionLabel(text: "Skin")
+                .padding(.top, 6)
             CardGroup {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
                           spacing: 8) {
@@ -3505,6 +4178,7 @@ struct AppearancePane: View {
                 .padding(16)
                 }
             }
+            } else {
 
             SectionLabel(text: "Pill")
                 .padding(.top, 6)
@@ -3770,6 +4444,75 @@ struct AppearancePane: View {
                         .frame(width: 130).controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Minimum text width") {
+                    Slider(value: $settings.pillMinWidth, in: 60...220)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Vertical offset",
+                     subtitle: "Nudge the pill up from the screen edge") {
+                    Slider(value: $settings.pillOffsetY, in: 0...200)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Entrance scale",
+                     subtitle: "How small the pill starts before it springs in") {
+                    Slider(value: $settings.pillAppearScale, in: 0.5...1.0)
+                        .frame(width: 130).controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Mirror waveform",
+                     subtitle: "Bars grow from the centerline both ways") {
+                    Toggle("", isOn: $settings.waveMirror)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Monospace transcript") {
+                    Toggle("", isOn: $settings.monospaceTranscript)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Word-count badge",
+                     subtitle: "The little “7w” pill while dictating") {
+                    Toggle("", isOn: $settings.wordCountBadge)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Dim idle dot",
+                     subtitle: "Extra-faint resting dot") {
+                    Toggle("", isOn: $settings.dimWhenIdle)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Gradient waveform",
+                     subtitle: "Blend the accent into a second hue") {
+                    Toggle("", isOn: $settings.accentGradient)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                if settings.accentGradient {
+                    RowDivider()
+                    PRow(title: "Second hue") {
+                        Slider(value: $settings.accentHue2, in: 0...1)
+                            .frame(width: 130).controlSize(.small)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Listening label",
+                     subtitle: "Custom placeholder text (empty = default)") {
+                    TextField("Listening…", text: $settings.listeningLabel)
+                        .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 180)
+                }
+                RowDivider()
+                PRow(title: "Processing label") {
+                    TextField("Polishing…", text: $settings.processingLabel)
+                        .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 180)
+                }
+                RowDivider()
+                PRow(title: "Done label") {
+                    TextField("Inserted ✓", text: $settings.doneLabel)
+                        .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 180)
+                }
+                RowDivider()
                 PRow(title: "Solid border",
                      subtitle: "Even accent border instead of the gradient sweep") {
                     Toggle("", isOn: Binding(get: { !settings.borderGradient },
@@ -3930,6 +4673,12 @@ struct AppearancePane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "Accent bar on selected tab",
+                     subtitle: "A colored rail beside the active sidebar item") {
+                    Toggle("", isOn: $settings.sidebarAccentBar)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Hide sidebar stats") {
                     Toggle("", isOn: $settings.hideSidebarStats)
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
@@ -3970,6 +4719,24 @@ struct AppearancePane: View {
                         .frame(width: 240)
                 }
                 RowDivider()
+                PRow(title: "Animated background",
+                     subtitle: "A slow drifting accent glow behind the settings") {
+                    Toggle("", isOn: $settings.animatedGradientBg)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Rotate skin daily",
+                     subtitle: "A different skin each day at launch") {
+                    Toggle("", isOn: $settings.skinAutoRotate)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Frosted pill",
+                     subtitle: "Blur whatever's behind the classic pill") {
+                    Toggle("", isOn: $settings.pillBlur)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
                 PRow(title: "Feeling lucky") {
                     Button("Surprise Me 🎲") {
                         settings.skin = AppSkin.allCases.filter { $0 != settings.skin && $0 != .custom }
@@ -3977,6 +4744,7 @@ struct AppearancePane: View {
                     }
                     .controlSize(.small)
                 }
+            }
             }
 
         }
@@ -4418,6 +5186,24 @@ struct StatsPane: View {
                     ForEach([1000, 2500, 5000, 10000], id: \.self) { Text("\($0)").tag($0) }
                 }
                 .pickerStyle(.menu).labelsHidden().frame(width: 90)
+            }
+            RowDivider()
+            PRow(title: "Speaking-pace goal",
+                 subtitle: "Target words per minute — shown against your actual pace") {
+                Picker("", selection: $settings.wpmGoal) {
+                    Text("Off").tag(0)
+                    ForEach([100, 130, 150, 180], id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.menu).labelsHidden().frame(width: 90)
+            }
+            if settings.wpmGoal > 0, settings.wordsPerMinute > 0 {
+                RowDivider()
+                let diff = settings.wordsPerMinute - settings.wpmGoal
+                Text(diff >= 0
+                     ? "You're \(diff) WPM above your \(settings.wpmGoal) goal 🏎"
+                     : "\(-diff) WPM to reach your \(settings.wpmGoal) goal")
+                    .font(.system(size: 11)).foregroundStyle(p.subtext)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
             }
             if settings.weeklyGoal > 0 {
                 RowDivider()
@@ -5097,8 +5883,8 @@ struct HistoryPane: View {
                         .padding(.vertical, 28)
                 }
             } else {
-                if sort == .newest {
-                    // Grouped by day, newest first — headers show totals and
+                if sort == .newest || settings.historyGroupByApp {
+                    // Grouped by day (or app) — headers show totals and
                     // click to collapse.
                     ForEach(groupedByDay, id: \.label) { group in
                         let words = group.items.reduce(0) { $0 + $1.text.split(whereSeparator: \.isWhitespace).count }
@@ -5204,6 +5990,28 @@ struct HistoryPane: View {
                             .toggleStyle(.switch).labelsHidden().controlSize(.small)
                     }
                     RowDivider()
+                    PRow(title: "Row text size") {
+                        Slider(value: $settings.historyFontSize, in: 11...15)
+                            .frame(width: 130).controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Show seconds in timestamps") {
+                        Toggle("", isOn: $settings.historyShowSeconds)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Group by app",
+                         subtitle: "Section transcripts by the app they went to") {
+                        Toggle("", isOn: $settings.historyGroupByApp)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Auto-export daily",
+                         subtitle: "Write each day's transcripts to Application Support") {
+                        Toggle("", isOn: $settings.autoExportDaily)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
                     PRow(title: "Compact rows",
                          subtitle: "One-line transcripts, tighter spacing") {
                         Toggle("", isOn: $settings.historyCompactRows)
@@ -5256,18 +6064,24 @@ struct HistoryPane: View {
         }
     }
 
-    /// Filtered items bucketed by calendar day, newest day first.
+    /// Filtered items bucketed by calendar day (or by app, when the
+    /// "Group by app" toggle is on), preserving the sorted order.
     private var groupedByDay: [(label: String, items: [HistoryItem])] {
         let cal = Calendar.current
         let df = DateFormatter()
         df.dateStyle = .medium
         var groups: [(label: String, items: [HistoryItem])] = []
         for item in filtered {
-            let label = cal.isDateInToday(item.date) ? "Today"
-                : cal.isDateInYesterday(item.date) ? "Yesterday"
-                : df.string(from: item.date)
-            if groups.last?.label == label {
-                groups[groups.count - 1].items.append(item)
+            let label: String
+            if settings.historyGroupByApp {
+                label = item.app?.isEmpty == false ? item.app! : "Other"
+            } else {
+                label = cal.isDateInToday(item.date) ? "Today"
+                    : cal.isDateInYesterday(item.date) ? "Yesterday"
+                    : df.string(from: item.date)
+            }
+            if let idx = groups.firstIndex(where: { $0.label == label }) {
+                groups[idx].items.append(item)
             } else {
                 groups.append((label, [item]))
             }
@@ -5432,13 +6246,17 @@ struct HistoryRow: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.text)
-                    .font(.system(size: settings.historyCompactRows ? 11.5 : 12.5))
+                    .font(.system(size: settings.historyCompactRows ? 11.5 : CGFloat(settings.historyFontSize)))
                     .foregroundStyle(p.text)
                     .lineLimit(settings.historyCompactRows ? 1 : 3)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 4) {
                     let words = item.text.split(whereSeparator: \.isWhitespace).count
-                    Text(item.date, format: .dateTime.month().day().hour().minute())
+                    if settings.historyShowSeconds {
+                        Text(item.date, format: .dateTime.month().day().hour().minute().second())
+                    } else {
+                        Text(item.date, format: .dateTime.month().day().hour().minute())
+                    }
                     Text("· \(words) \(words == 1 ? "word" : "words")")
                     if let secs = item.seconds, secs >= 1 {
                         Text(String(format: "· %d:%02d", Int(secs) / 60, Int(secs) % 60))

@@ -17,10 +17,15 @@ final class HotkeyManager {
     var onStart: (() -> Void)?
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
+    /// AI Command Mode: hold the command key, speak, release.
+    var onCommandStart: (() -> Void)?
+    var onCommandFinish: (() -> Void)?
     /// Queried so a tap while already hands-free stops the recording.
     var isRecording: (() -> Bool)?
     /// Set true by the app while recording started from a quick tap.
     var handsFree = false
+
+    private var commandHeld = false
 
     private let escKeyCode: UInt16 = 53
     private var monitors: [Any] = []
@@ -66,8 +71,15 @@ final class HotkeyManager {
 
     // MARK: Shared press/release logic
 
+    private var lastPressAt: Date?
+
     private func handlePress() {
-        keyDownAt = Date()
+        let now = Date()
+        // Double-tap (two quick presses) latches hands-free immediately.
+        let isDoubleTap = AppSettings.shared.doubleTapHandsFree
+            && (lastPressAt.map { now.timeIntervalSince($0) < 0.35 } ?? false)
+        lastPressAt = now
+        keyDownAt = now
         if isRecording?() == true {
             // Tap while hands-free: finish and insert.
             startedThisPress = false
@@ -75,6 +87,7 @@ final class HotkeyManager {
             onFinish?()
         } else {
             startedThisPress = true
+            if isDoubleTap { handsFree = true }
             onStart?()
         }
     }
@@ -99,7 +112,18 @@ final class HotkeyManager {
 
     private func handleFlagsChanged(_ event: NSEvent) {
         guard !KeyCaptureState.active else { return }
-        let hotkey = AppSettings.shared.hotkey
+        let s = AppSettings.shared
+        // Command Mode key (modifier only). Checked first so it wins if the
+        // user somehow bound both to the same key.
+        let cmd = s.commandHotkey
+        if s.commandModeEnabled, cmd.isModifier, event.keyCode == cmd.keyCode,
+           cmd.keyCode != s.hotkey.keyCode, let flag = cmd.modifierFlag {
+            let down = event.modifierFlags.contains(flag)
+            if down, !commandHeld { commandHeld = true; onCommandStart?() }
+            else if !down, commandHeld { commandHeld = false; onCommandFinish?() }
+            return
+        }
+        let hotkey = s.hotkey
         guard hotkey.isModifier, event.keyCode == hotkey.keyCode,
               let flag = hotkey.modifierFlag else { return }
         if event.modifierFlags.contains(flag) { handlePress() } else { handleRelease() }
