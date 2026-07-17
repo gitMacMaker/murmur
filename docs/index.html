@@ -8,8 +8,8 @@
 <link rel="icon" type="image/png" href="icon.png">
 <meta property="og:title" content="Murmur — dictation for your Mac">
 <meta property="og:description" content="Hold a key. Talk. It types. Private, on-device, free and open source.">
-<meta property="og:image" content="https://gitmacmaker.github.io/murmur/shot-midnight.png">
-<meta property="og:url" content="https://gitmacmaker.github.io/murmur/">
+<meta property="og:image" content="https://getmurmur.vercel.app/shot-midnight.png">
+<meta property="og:url" content="https://getmurmur.vercel.app/">
 <style>
   :root {
     --bg: #f9f6ef;
@@ -120,9 +120,27 @@
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 24px;
   }
-  .card .emoji { font-size: 26px; }
-  .card h3 { font-size: 16.5px; font-weight: 700; margin: 12px 0 6px; }
+  .card h3 { font-size: 16.5px; font-weight: 700; margin: 14px 0 6px; }
   .card p { font-size: 14px; color: var(--sub); }
+
+  /* Custom icon chips — hand-drawn SVG set, no system emoji. */
+  .icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(138, 92, 245, 0.10);
+  }
+  .icon svg {
+    width: 22px; height: 22px;
+    stroke: var(--accent-deep); fill: none;
+    stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .band .icon { background: rgba(170, 135, 255, 0.16); }
+  .band .icon svg { stroke: #b7a3f2; }
+  .btn svg {
+    width: 17px; height: 17px;
+    stroke: currentColor; fill: none;
+    stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+  }
 
   /* ---------- Screenshots ---------- */
   .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; margin-top: 38px; }
@@ -188,6 +206,24 @@
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 14.5v2"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M11 4l1.7 4.1L16.8 10l-4.1 1.9L11 16l-1.7-4.1L5.2 10l4.1-1.9z"/><path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
+    <symbol id="i-swatch" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="3.5"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.2C10.5 4.8 8.3 4.2 5.5 4.2v13.6c2.8 0 5 .6 6.5 2 1.5-1.4 3.7-2 6.5-2V4.2c-2.8 0-5 .6-6.5 2z"/><path d="M12 6.2v13.6"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-4"/><path d="M12 16V7"/><path d="M17 16v-6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 7.8V12l3.1 2"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="14.5" cy="7" r="2.1"/><circle cx="8" cy="12" r="2.1"/><circle cx="16.5" cy="17" r="2.1"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.2-4.6-7.2-10a4.1 4.1 0 0 1 7.2-2.7A4.1 4.1 0 0 1 19.2 10c0 5.4-7.2 10-7.2 10z"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8.5-8.5"/><path d="M16 7.5l3 3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 2.8v6c0 4.4-3 7.4-7 9.2-4-1.8-7-4.8-7-9.2v-6z"/><path d="M9 12l2.2 2.2L15.4 10"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="M8.5 8L4.5 12l4 4"/><path d="M15.5 8l4 4-4 4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></symbol>
+  </defs>
+</svg>
+
 <div class="wrap">
   <nav>
     <a class="brand" href="#"><img src="icon.png" alt=""> Murmur</a>
@@ -206,7 +242,7 @@
   <h1>Hold a key. Talk.<br>It types.</h1>
   <p class="tagline">Murmur is <strong>free, open-source dictation</strong> for your Mac —<br>private, on-device, and absurdly customizable.</p>
   <div class="cta-row">
-    <a class="btn btn-primary" href="https://github.com/gitMacMaker/murmur/releases/latest">⬇︎&nbsp; Download for Mac</a>
+    <a class="btn btn-primary" href="https://github.com/gitMacMaker/murmur/releases/latest"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg> Download for Mac</a>
     <a class="btn btn-secondary" href="https://github.com/gitMacMaker/murmur">View the source</a>
   </div>
   <p class="meta">v2.6 · macOS 14+ (Apple Silicon) · MIT licensed · no account, no subscription, no server</p>
@@ -227,15 +263,15 @@
     <h2>Everything Wispr Flow does.<br>Then it keeps going.</h2>
     <p class="lede">Hold Right&nbsp;⌥ (or any key you pick) and talk — Murmur types it into whatever app you're using. Quick-tap for hands-free. Esc cancels. That's the whole learning curve.</p>
     <div class="grid">
-      <div class="card"><span class="emoji">🔒</span><h3>100% on-device speech</h3><p>Apple's on-device recognizer transcribes locally. Your voice never leaves your Mac — no accounts, no cloud, no telemetry.</p></div>
-      <div class="card"><span class="emoji">✨</span><h3>AI polish with per-app voices</h3><p>Optionally pipe transcripts through Claude to fix false starts — with a different personality per app. Casual with emojis in Slack, formal in Mail. Bring your own API key (kept in the Keychain) or use the Claude CLI.</p></div>
-      <div class="card"><span class="emoji">🎨</span><h3>31 skins + a Skin Studio</h3><p>Terminal, Blueprint, Sketch, Midnight, Candy… or design your own: every color editable, shareable as a skin code.</p></div>
-      <div class="card"><span class="emoji">📖</span><h3>A dictionary that listens</h3><p>Spoken phrases become snippets — “my email” types your address. Entries double as recognizer hints so unusual names actually get heard. Regex mode for the brave.</p></div>
-      <div class="card"><span class="emoji">🗣</span><h3>Voice commands</h3><p>“New line”, “scratch that”, “fire emoji”, spoken punctuation, spelled-out numbers to digits, filler-word removal, and a live test box.</p></div>
-      <div class="card"><span class="emoji">📊</span><h3>Stats & 20 badges</h3><p>Streaks, words-per-minute, heatmaps, hour-of-day charts, top apps, goals — your dictation life in numbers, all stored locally.</p></div>
-      <div class="card"><span class="emoji">🕘</span><h3>History with superpowers</h3><p>Search, pin, filter by app, re-polish in any tone, export Markdown/JSON — or pause history entirely.</p></div>
-      <div class="card"><span class="emoji">⚙️</span><h3>~250 settings</h3><p>Per-app rules, chain dictation, click-to-finish pill, quiet hours, weekly auto-backups… if you wished it were an option, it probably is.</p></div>
-      <div class="card"><span class="emoji">🆓</span><h3>Free, forever</h3><p>MIT licensed and built in the open. No trial, no “pro” tier, no upsell — it's just yours.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span><h3>100% on-device speech</h3><p>Apple's on-device recognizer transcribes locally. Your voice never leaves your Mac — no accounts, no cloud, no telemetry.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-sparkle"/></svg></span><h3>AI polish with per-app voices</h3><p>Optionally pipe transcripts through Claude to fix false starts — with a different personality per app. Casual with emojis in Slack, formal in Mail. Bring your own API key (kept in the Keychain) or use the Claude CLI.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-swatch"/></svg></span><h3>31 skins + a Skin Studio</h3><p>Terminal, Blueprint, Sketch, Midnight, Candy… or design your own: every color editable, shareable as a skin code.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-book"/></svg></span><h3>A dictionary that listens</h3><p>Spoken phrases become snippets — “my email” types your address. Entries double as recognizer hints so unusual names actually get heard. Regex mode for the brave.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-mic"/></svg></span><h3>Voice commands</h3><p>“New line”, “scratch that”, “fire emoji”, spoken punctuation, spelled-out numbers to digits, filler-word removal, and a live test box.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-chart"/></svg></span><h3>Stats & 20 badges</h3><p>Streaks, words-per-minute, heatmaps, hour-of-day charts, top apps, goals — your dictation life in numbers, all stored locally.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-clock"/></svg></span><h3>History with superpowers</h3><p>Search, pin, filter by app, re-polish in any tone, export Markdown/JSON — or pause history entirely.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-sliders"/></svg></span><h3>~250 settings</h3><p>Per-app rules, chain dictation, click-to-finish pill, quiet hours, weekly auto-backups… if you wished it were an option, it probably is.</p></div>
+      <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-heart"/></svg></span><h3>Free, forever</h3><p>MIT licensed and built in the open. No trial, no “pro” tier, no upsell — it's just yours.</p></div>
     </div>
 
     <div class="shots">
@@ -284,10 +320,10 @@
       <h2>Your voice stays home.</h2>
       <p class="lede">Murmur was built the paranoid way, because dictation hears everything.</p>
       <div class="grid">
-        <div class="card"><span class="emoji">🎙</span><h3>On-device recognition</h3><p>Speech-to-text runs on Apple's local recognizer whenever the language supports it. Airplane mode? Still works.</p></div>
-        <div class="card"><span class="emoji">🔑</span><h3>Keys in the Keychain</h3><p>If you enable AI polish, your Anthropic key lives only in the macOS Keychain — never in settings files, backups, or logs.</p></div>
-        <div class="card"><span class="emoji">🙈</span><h3>You control the record</h3><p>Pause history, redact numbers, exclude password managers from auto-insert, auto-cancel when the screen locks.</p></div>
-        <div class="card"><span class="emoji">📖</span><h3>Auditable</h3><p>Every line of Swift is on GitHub under MIT. Don't trust — read.</p></div>
+        <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-mic"/></svg></span><h3>On-device recognition</h3><p>Speech-to-text runs on Apple's local recognizer whenever the language supports it. Airplane mode? Still works.</p></div>
+        <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-key"/></svg></span><h3>Keys in the Keychain</h3><p>If you enable AI polish, your Anthropic key lives only in the macOS Keychain — never in settings files, backups, or logs.</p></div>
+        <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-shield"/></svg></span><h3>You control the record</h3><p>Pause history, redact numbers, exclude password managers from auto-insert, auto-cancel when the screen locks.</p></div>
+        <div class="card"><span class="icon"><svg viewBox="0 0 24 24"><use href="#i-code"/></svg></span><h3>Auditable</h3><p>Every line of Swift is on GitHub under MIT. Don't trust — read.</p></div>
       </div>
     </div>
   </div>
@@ -303,7 +339,7 @@
       <div class="step"><p><strong>Hold Right ⌥ and say something.</strong> Release, and watch it land in whatever app you're in. Quick-tap instead for hands-free.</p></div>
     </div>
     <div class="cta-row" style="justify-content:flex-start; margin-top: 36px;">
-      <a class="btn btn-primary" href="https://github.com/gitMacMaker/murmur/releases/latest">⬇︎&nbsp; Download Murmur</a>
+      <a class="btn btn-primary" href="https://github.com/gitMacMaker/murmur/releases/latest"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg> Download Murmur</a>
     </div>
     <p class="meta" style="margin-top:14px;">Heads up: the app is ad-hoc signed, so macOS may ask you to approve it in System Settings ▸ Privacy &amp; Security the first time.</p>
   </div>
