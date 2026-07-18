@@ -188,6 +188,20 @@ for skin in AppSkin.allCases where skin.spec != nil {
 }
 print("skins: \(AppSkin.allCases.count)")
 
+// Textures: enum count, spec assignments, custom texture in share/backup.
+assert(SkinTexture.allCases.count == 10, "texture count")
+assert(AppSkin.honey.spec?.texture == .hexagons, "honey hexagons")
+assert(AppSkin.cosmos.spec?.texture == .stars, "cosmos stars")
+assert(AppSkin.crimson.spec?.texture == SkinTexture.none, "untextured default")
+let origTex = AppSettings.shared.customSkinTexture
+AppSettings.shared.customSkinTexture = .dots
+assert(AppSkin.custom.spec?.texture == .dots, "custom texture flows to spec")
+let bkTex = try! AppSettings.shared.exportBackup()
+let decTex = try! JSONDecoder().decode(AppSettings.Backup.self, from: bkTex)
+assert(decTex.extra4?.customSkinTexture == "dots", "texture backup roundtrip")
+AppSettings.shared.customSkinTexture = origTex
+print("textures OK")
+
 // Language list: full recognizer catalog, no artificial cap.
 let langCount = GeneralPane.languages.count
 let onDeviceCount = GeneralPane.onDeviceLocales.count
@@ -345,6 +359,8 @@ struct AppsPreview: View {
 snap(AppsPreview(), width: 524, height: 760, path: "preview_apps.png")
 AppSettings.shared.appRules = hadRules
 
+AppSettings.shared.skin = .honey
+snap(SettingsRootView(), width: 700, height: 500, path: "preview_honey_window.png", light: true)
 AppSettings.shared.skin = .ocean
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_ocean.png")
 AppSettings.shared.skin = .honey

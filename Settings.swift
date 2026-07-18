@@ -224,6 +224,8 @@ struct SkinSpec {
     let pillBorder: Color
     let pillRadius: CGFloat
     let glow: Color
+    /// Window texture painted behind the settings (SkinBackground).
+    var texture: SkinTexture = .none
 
     func font(_ size: CGFloat, _ weight: Font.Weight) -> Font {
         if let fontName { return .custom(fontName, size: size) }
@@ -232,7 +234,7 @@ struct SkinSpec {
 
     static func dark(_ r: Double, _ g: Double, _ b: Double, ink: Color,
                      font: String? = nil, design: Font.Design = .default,
-                     radius: CGFloat = 100) -> SkinSpec {
+                     radius: CGFloat = 100, texture: SkinTexture = .none) -> SkinSpec {
         SkinSpec(
             palette: Palette(
                 bg: Color(red: r, green: g, blue: b),
@@ -243,12 +245,13 @@ struct SkinSpec {
                 subtext: Color(white: 0.62)),
             ink: ink, isDark: true, fontName: font, fontDesign: design,
             pillFill: Color(red: min(1, r + 0.025), green: min(1, g + 0.025), blue: min(1, b + 0.03)),
-            pillBorder: ink.opacity(0.6), pillRadius: radius, glow: ink)
+            pillBorder: ink.opacity(0.6), pillRadius: radius, glow: ink,
+            texture: texture)
     }
 
     static func light(_ r: Double, _ g: Double, _ b: Double, ink: Color,
                       font: String? = nil, design: Font.Design = .default,
-                      radius: CGFloat = 100) -> SkinSpec {
+                      radius: CGFloat = 100, texture: SkinTexture = .none) -> SkinSpec {
         SkinSpec(
             palette: Palette(
                 bg: Color(red: r, green: g, blue: b),
@@ -259,7 +262,8 @@ struct SkinSpec {
                 subtext: Color(red: 0.45, green: 0.43, blue: 0.44)),
             ink: ink, isDark: false, fontName: font, fontDesign: design,
             pillFill: Color(red: 0.995, green: 0.995, blue: 0.995),
-            pillBorder: ink.opacity(0.55), pillRadius: radius, glow: ink)
+            pillBorder: ink.opacity(0.55), pillRadius: radius, glow: ink,
+            texture: texture)
     }
 }
 
@@ -340,27 +344,28 @@ enum AppSkin: String, CaseIterable, Identifiable {
                 pillFill: pillBg,
                 pillBorder: ink.opacity(0.6),
                 pillRadius: s.customSkinShape.radius ?? 100,
-                glow: ink)
-        case .ocean: return .dark(0.016, 0.075, 0.11, ink: Color(red: 0.35, green: 0.78, blue: 0.90))
+                glow: ink,
+                texture: s.customSkinTexture)
+        case .ocean: return .dark(0.016, 0.075, 0.11, ink: Color(red: 0.35, green: 0.78, blue: 0.90), texture: .waves)
         case .lava: return .dark(0.09, 0.03, 0.02, ink: Color(red: 1.0, green: 0.45, blue: 0.25))
         case .slate: return .dark(0.09, 0.10, 0.12, ink: Color(red: 0.55, green: 0.65, blue: 0.78), radius: 14)
         case .grape: return .dark(0.08, 0.04, 0.12, ink: Color(red: 0.72, green: 0.52, blue: 0.95))
         case .coffee: return .dark(0.10, 0.07, 0.05, ink: Color(red: 0.78, green: 0.62, blue: 0.46), font: "Baskerville")
         case .cherry: return .dark(0.10, 0.03, 0.05, ink: Color(red: 0.95, green: 0.35, blue: 0.45))
         case .gold: return .dark(0.08, 0.075, 0.06, ink: Color(red: 0.87, green: 0.72, blue: 0.35), font: "Didot")
-        case .denim: return .dark(0.07, 0.09, 0.14, ink: Color(red: 0.52, green: 0.68, blue: 0.92), radius: 16)
+        case .denim: return .dark(0.07, 0.09, 0.14, ink: Color(red: 0.52, green: 0.68, blue: 0.92), radius: 16, texture: .stripes)
         case .olive: return .dark(0.08, 0.09, 0.05, ink: Color(red: 0.70, green: 0.75, blue: 0.40))
         case .charcoal: return .dark(0.10, 0.10, 0.10, ink: Color(white: 0.75), radius: 14)
-        case .cyber: return .dark(0.05, 0.05, 0.04, ink: Color(red: 0.95, green: 0.90, blue: 0.15), font: "Menlo", radius: 6)
+        case .cyber: return .dark(0.05, 0.05, 0.04, ink: Color(red: 0.95, green: 0.90, blue: 0.15), font: "Menlo", radius: 6, texture: .scanlines)
         case .storm: return .dark(0.07, 0.08, 0.10, ink: Color(red: 0.60, green: 0.70, blue: 0.80))
         case .pumpkin: return .dark(0.07, 0.045, 0.02, ink: Color(red: 0.98, green: 0.55, blue: 0.15))
         case .ice: return .light(0.93, 0.96, 0.985, ink: Color(red: 0.30, green: 0.52, blue: 0.72))
         case .lavender: return .light(0.955, 0.94, 0.985, ink: Color(red: 0.55, green: 0.42, blue: 0.80))
         case .mint: return .light(0.93, 0.975, 0.945, ink: Color(red: 0.22, green: 0.60, blue: 0.42))
-        case .sand: return .light(0.965, 0.935, 0.875, ink: Color(red: 0.62, green: 0.44, blue: 0.24), font: "Avenir Next")
+        case .sand: return .light(0.965, 0.935, 0.875, ink: Color(red: 0.62, green: 0.44, blue: 0.24), font: "Avenir Next", texture: .grain)
         case .rose: return .light(0.985, 0.94, 0.945, ink: Color(red: 0.80, green: 0.36, blue: 0.48))
-        case .linen: return .light(0.955, 0.95, 0.94, ink: Color(red: 0.45, green: 0.42, blue: 0.40), radius: 14)
-        case .honey: return .light(0.99, 0.96, 0.87, ink: Color(red: 0.80, green: 0.58, blue: 0.15))
+        case .linen: return .light(0.955, 0.95, 0.94, ink: Color(red: 0.45, green: 0.42, blue: 0.40), radius: 14, texture: .grain)
+        case .honey: return .light(0.99, 0.96, 0.87, ink: Color(red: 0.80, green: 0.58, blue: 0.15), texture: .hexagons)
         // v2.7 darks
         case .crimson: return .dark(0.12, 0.02, 0.03, ink: Color(red: 0.98, green: 0.35, blue: 0.35))
         case .royal: return .dark(0.04, 0.06, 0.16, ink: Color(red: 0.85, green: 0.70, blue: 0.30))
@@ -369,10 +374,10 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .steel: return .dark(0.10, 0.11, 0.13, ink: Color(red: 0.75, green: 0.80, blue: 0.88), radius: 12)
         case .plum: return .dark(0.10, 0.04, 0.09, ink: Color(red: 0.90, green: 0.50, blue: 0.80))
         case .abyss: return .dark(0.015, 0.015, 0.025, ink: Color(red: 0.50, green: 0.55, blue: 0.60))
-        case .aurora: return .dark(0.03, 0.08, 0.10, ink: Color(red: 0.40, green: 0.95, blue: 0.75))
+        case .aurora: return .dark(0.03, 0.08, 0.10, ink: Color(red: 0.40, green: 0.95, blue: 0.75), texture: .waves)
         case .indigo: return .dark(0.05, 0.04, 0.14, ink: Color(red: 0.55, green: 0.50, blue: 0.95))
         case .jade: return .dark(0.03, 0.09, 0.08, ink: Color(red: 0.35, green: 0.85, blue: 0.70))
-        case .carbon: return .dark(0.07, 0.07, 0.07, ink: Color(white: 0.88), font: "Menlo", radius: 8)
+        case .carbon: return .dark(0.07, 0.07, 0.07, ink: Color(white: 0.88), font: "Menlo", radius: 8, texture: .grain)
         case .wine: return .dark(0.10, 0.03, 0.06, ink: Color(red: 0.90, green: 0.45, blue: 0.60))
         case .cocoa: return .dark(0.08, 0.055, 0.045, ink: Color(red: 0.80, green: 0.65, blue: 0.55))
         case .navy: return .dark(0.03, 0.05, 0.10, ink: Color(red: 0.50, green: 0.70, blue: 0.95))
@@ -384,11 +389,11 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .sapphire: return .dark(0.03, 0.05, 0.12, ink: Color(red: 0.40, green: 0.60, blue: 1.0))
         case .onyx: return .dark(0.04, 0.04, 0.05, ink: Color(red: 0.80, green: 0.75, blue: 0.90))
         case .bronze: return .dark(0.09, 0.07, 0.04, ink: Color(red: 0.80, green: 0.62, blue: 0.30))
-        case .cosmos: return .dark(0.05, 0.03, 0.10, ink: Color(red: 0.85, green: 0.55, blue: 0.95))
+        case .cosmos: return .dark(0.05, 0.03, 0.10, ink: Color(red: 0.85, green: 0.55, blue: 0.95), texture: .stars)
         case .shadow: return .dark(0.06, 0.06, 0.08, ink: Color(red: 0.55, green: 0.60, blue: 0.75))
         // v2.7 lights
         case .cloud: return .light(0.96, 0.97, 0.98, ink: Color(red: 0.45, green: 0.55, blue: 0.68))
-        case .seafoam: return .light(0.92, 0.975, 0.96, ink: Color(red: 0.20, green: 0.60, blue: 0.55))
+        case .seafoam: return .light(0.92, 0.975, 0.96, ink: Color(red: 0.20, green: 0.60, blue: 0.55), texture: .waves)
         case .blush: return .light(0.99, 0.95, 0.94, ink: Color(red: 0.85, green: 0.45, blue: 0.40))
         case .butter: return .light(0.995, 0.975, 0.90, ink: Color(red: 0.75, green: 0.60, blue: 0.10))
         case .lilac: return .light(0.965, 0.95, 0.99, ink: Color(red: 0.60, green: 0.45, blue: 0.85))
@@ -398,9 +403,9 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .cream: return .light(0.98, 0.965, 0.94, ink: Color(red: 0.60, green: 0.50, blue: 0.35), font: "Georgia")
         case .pistachio: return .light(0.955, 0.975, 0.92, ink: Color(red: 0.50, green: 0.65, blue: 0.30))
         case .pearl: return .light(0.97, 0.965, 0.96, ink: Color(red: 0.55, green: 0.50, blue: 0.55))
-        case .chambray: return .light(0.945, 0.955, 0.975, ink: Color(red: 0.40, green: 0.50, blue: 0.70))
-        case .cotton: return .light(0.985, 0.975, 0.985, ink: Color(red: 0.70, green: 0.50, blue: 0.75))
-        case .fog: return .light(0.955, 0.955, 0.955, ink: Color(red: 0.50, green: 0.50, blue: 0.52), radius: 14)
+        case .chambray: return .light(0.945, 0.955, 0.975, ink: Color(red: 0.40, green: 0.50, blue: 0.70), texture: .grid)
+        case .cotton: return .light(0.985, 0.975, 0.985, ink: Color(red: 0.70, green: 0.50, blue: 0.75), texture: .dots)
+        case .fog: return .light(0.955, 0.955, 0.955, ink: Color(red: 0.50, green: 0.50, blue: 0.52), radius: 14, texture: .grain)
         case .matcha: return .light(0.94, 0.955, 0.90, ink: Color(red: 0.45, green: 0.55, blue: 0.25))
         case .orchid: return .light(0.98, 0.945, 0.975, ink: Color(red: 0.75, green: 0.40, blue: 0.70))
         // Wave 2 — darks
@@ -415,10 +420,10 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .noir: return .dark(0.05, 0.045, 0.05, ink: Color(red: 0.85, green: 0.70, blue: 0.75), font: "Georgia")
         case .petrol: return .dark(0.02, 0.07, 0.08, ink: Color(red: 0.35, green: 0.75, blue: 0.80))
         case .sienna: return .dark(0.09, 0.05, 0.035, ink: Color(red: 0.85, green: 0.50, blue: 0.30))
-        case .galaxy: return .dark(0.04, 0.03, 0.09, ink: Color(red: 0.60, green: 0.55, blue: 1.0))
+        case .galaxy: return .dark(0.04, 0.03, 0.09, ink: Color(red: 0.60, green: 0.55, blue: 1.0), texture: .stars)
         case .hunter: return .dark(0.03, 0.07, 0.04, ink: Color(red: 0.40, green: 0.80, blue: 0.50))
         case .merlot: return .dark(0.09, 0.02, 0.04, ink: Color(red: 0.95, green: 0.40, blue: 0.50))
-        case .gunmetal: return .dark(0.075, 0.08, 0.085, ink: Color(red: 0.70, green: 0.75, blue: 0.80), radius: 10)
+        case .gunmetal: return .dark(0.075, 0.08, 0.085, ink: Color(red: 0.70, green: 0.75, blue: 0.80), radius: 10, texture: .grid)
         case .blackberry: return .dark(0.06, 0.03, 0.08, ink: Color(red: 0.80, green: 0.55, blue: 0.90))
         case .tangerine: return .dark(0.10, 0.06, 0.02, ink: Color(red: 1.0, green: 0.65, blue: 0.25))
         // Wave 2 — lights
@@ -430,8 +435,8 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .periwinkle: return .light(0.955, 0.955, 0.995, ink: Color(red: 0.50, green: 0.50, blue: 0.90))
         case .shell: return .light(0.99, 0.965, 0.95, ink: Color(red: 0.75, green: 0.55, blue: 0.45))
         case .porcelain: return .light(0.975, 0.975, 0.97, ink: Color(red: 0.50, green: 0.55, blue: 0.60))
-        case .lemon: return .light(0.995, 0.99, 0.92, ink: Color(red: 0.72, green: 0.66, blue: 0.12))
-        case .flamingo: return .light(0.995, 0.94, 0.95, ink: Color(red: 0.92, green: 0.42, blue: 0.55))
+        case .lemon: return .light(0.995, 0.99, 0.92, ink: Color(red: 0.72, green: 0.66, blue: 0.12), texture: .dots)
+        case .flamingo: return .light(0.995, 0.94, 0.95, ink: Color(red: 0.92, green: 0.42, blue: 0.55), texture: .dots)
         case .dove: return .light(0.96, 0.96, 0.965, ink: Color(red: 0.55, green: 0.55, blue: 0.60))
         case .julep: return .light(0.945, 0.985, 0.955, ink: Color(red: 0.30, green: 0.65, blue: 0.50))
         default: return nil
@@ -1064,6 +1069,7 @@ final class AppSettings: ObservableObject {
     @Published var customSkinSat: Double { didSet { d.set(customSkinSat, forKey: "customSkinSat") } }
     @Published var customSkinFont: CustomSkinFont { didSet { d.set(customSkinFont.rawValue, forKey: "customSkinFont") } }
     @Published var customSkinShape: PillCorner { didSet { d.set(customSkinShape.rawValue, forKey: "customSkinShape") } }
+    @Published var customSkinTexture: SkinTexture { didSet { d.set(customSkinTexture.rawValue, forKey: "customSkinTexture") } }
     // Per-color overrides ("" = generated from the theme wheel).
     @Published var customBgHex: String { didSet { d.set(customBgHex, forKey: "customBgHex") } }
     @Published var customSidebarHex: String { didSet { d.set(customSidebarHex, forKey: "customSidebarHex") } }
@@ -1368,6 +1374,7 @@ final class AppSettings: ObservableObject {
             var properNouns, historyMarkFavorites: [String]?
             var commandModeEnabled, autoLearnVocab: Bool?
             var commandHotkey: HotkeyKey?
+            var customSkinTexture: String?
         }
     }
 
@@ -1501,7 +1508,7 @@ final class AppSettings: ObservableObject {
                 listeningLabel: listeningLabel, properNouns: properNouns,
                 historyMarkFavorites: historyMarkFavorites,
                 commandModeEnabled: commandModeEnabled, autoLearnVocab: autoLearnVocab,
-                commandHotkey: commandHotkey))
+                commandHotkey: commandHotkey, customSkinTexture: customSkinTexture.rawValue))
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try enc.encode(b)
@@ -1746,6 +1753,7 @@ final class AppSettings: ObservableObject {
             if let v = e.commandModeEnabled { commandModeEnabled = v }
             if let v = e.autoLearnVocab { autoLearnVocab = v }
             if let v = e.commandHotkey { commandHotkey = v }
+            if let v = e.customSkinTexture { customSkinTexture = SkinTexture(rawValue: v) ?? customSkinTexture }
         }
     }
 
@@ -2081,6 +2089,7 @@ final class AppSettings: ObservableObject {
         customSkinSat = d.object(forKey: "customSkinSat") as? Double ?? 0.55
         customSkinFont = CustomSkinFont(rawValue: d.string(forKey: "customSkinFont") ?? "") ?? .system
         customSkinShape = PillCorner(rawValue: d.string(forKey: "customSkinShape") ?? "") ?? .capsule
+        customSkinTexture = SkinTexture(rawValue: d.string(forKey: "customSkinTexture") ?? "") ?? .none
         customBgHex = d.string(forKey: "customBgHex") ?? ""
         customSidebarHex = d.string(forKey: "customSidebarHex") ?? ""
         customCardHex = d.string(forKey: "customCardHex") ?? ""
@@ -4856,6 +4865,14 @@ struct AppearancePane: View {
                 .pickerStyle(.segmented).labelsHidden().frame(width: 200)
             }
             RowDivider()
+            PRow(title: "Background texture",
+                 subtitle: "Painted faintly behind the whole window") {
+                Picker("", selection: $settings.customSkinTexture) {
+                    ForEach(SkinTexture.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.menu).labelsHidden().frame(width: 130)
+            }
+            RowDivider()
             HStack {
                 Button("Regenerate from Theme Color") { settings.generateCustomSkin() }
                     .controlSize(.small)
@@ -4865,7 +4882,8 @@ struct AppearancePane: View {
                     let code = "murmur-skin:1:\(s.customSkinDark ? "d" : "l"):"
                         + [s.customBgHex, s.customSidebarHex, s.customCardHex, s.customTextHex,
                            s.customSubtextHex, s.customInkHex, s.customPillBgHex,
-                           s.customSkinFont.rawValue, s.customSkinShape.rawValue]
+                           s.customSkinFont.rawValue, s.customSkinShape.rawValue,
+                           s.customSkinTexture.rawValue]
                             .joined(separator: ":")
                     let pb = NSPasteboard.general
                     pb.clearContents()
@@ -4888,6 +4906,9 @@ struct AppearancePane: View {
                     settings.customPillBgHex = parts[9]
                     settings.customSkinFont = CustomSkinFont(rawValue: parts[10]) ?? .system
                     settings.customSkinShape = PillCorner(rawValue: parts[11]) ?? .capsule
+                    if parts.count >= 13 {
+                        settings.customSkinTexture = SkinTexture(rawValue: parts[12]) ?? .none
+                    }
                 }
                 .controlSize(.small)
             }

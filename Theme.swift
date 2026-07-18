@@ -344,20 +344,165 @@ private struct SeededRNG {
     }
 }
 
-/// Per-skin window texture: scribbles for sketch, scanlines for terminal,
-/// drafting grid for blueprint, nothing for the rest.
+/// The texture vocabulary skins (and the Skin Studio) can paint behind the
+/// settings window.
+enum SkinTexture: String, CaseIterable, Identifiable, Codable {
+    case none, scribbles, scanlines, grid, stars, dots, waves, hexagons, stripes, grain
+    var id: String { rawValue }
+    var label: String { self == .none ? "None" : rawValue.capitalized }
+}
+
+/// Per-skin window texture. Hand-built skins keep their signature textures;
+/// spec skins (and the Custom skin) declare one via SkinSpec.texture.
 struct SkinBackground: View {
     @ObservedObject private var settings = AppSettings.shared
     var seed: UInt64 = 1
 
     var body: some View {
-        switch settings.skin {
-        case .sketch: ScribbleBackground(seed: seed)
-        case .terminal: ScanlineBackground()
-        case .blueprint: GridBackground()
-        case .midnight: StarsBackground(seed: seed)
-        default: EmptyView()
+        if let spec = settings.skin.spec, spec.texture != .none {
+            texture(spec.texture, dark: spec.isDark)
+        } else {
+            switch settings.skin {
+            case .sketch: ScribbleBackground(seed: seed)
+            case .terminal: ScanlineBackground()
+            case .blueprint: GridBackground()
+            case .midnight: StarsBackground(seed: seed)
+            default: EmptyView()
+            }
         }
+    }
+
+    @ViewBuilder
+    private func texture(_ t: SkinTexture, dark: Bool) -> some View {
+        let tint: Color = dark ? .white : .black
+        switch t {
+        case .none: EmptyView()
+        case .scribbles: ScribbleBackground(seed: seed)
+        case .scanlines: ScanlineBackground()
+        case .grid: GridBackground()
+        case .stars: StarsBackground(seed: seed)
+        case .dots: DotsBackground(tint: tint)
+        case .waves: WavesBackground(tint: tint)
+        case .hexagons: HexBackground(tint: tint)
+        case .stripes: StripesBackground(tint: tint)
+        case .grain: GrainBackground(tint: tint, seed: seed)
+        }
+    }
+}
+
+/// Polka dots on an offset grid.
+struct DotsBackground: View {
+    var tint: Color = .white
+    var body: some View {
+        Canvas { ctx, size in
+            let step: CGFloat = 26
+            var row = 0
+            var y: CGFloat = 8
+            while y < size.height {
+                var x: CGFloat = row.isMultiple(of: 2) ? 8 : 8 + step / 2
+                while x < size.width {
+                    ctx.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 2.6, height: 2.6)),
+                             with: .color(tint.opacity(0.06)))
+                    x += step
+                }
+                y += step; row += 1
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Gentle horizontal sine lines.
+struct WavesBackground: View {
+    var tint: Color = .white
+    var body: some View {
+        Canvas { ctx, size in
+            var y: CGFloat = 20
+            while y < size.height {
+                var path = Path()
+                path.move(to: CGPoint(x: 0, y: y))
+                var x: CGFloat = 0
+                while x < size.width {
+                    path.addQuadCurve(to: CGPoint(x: x + 24, y: y),
+                                      control: CGPoint(x: x + 12, y: y - 5))
+                    path.addQuadCurve(to: CGPoint(x: x + 48, y: y),
+                                      control: CGPoint(x: x + 36, y: y + 5))
+                    x += 48
+                }
+                ctx.stroke(path, with: .color(tint.opacity(0.05)), lineWidth: 1)
+                y += 30
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Honeycomb outlines.
+struct HexBackground: View {
+    var tint: Color = .white
+    var body: some View {
+        Canvas { ctx, size in
+            let r: CGFloat = 16
+            let w = r * 1.732   // hex width
+            let vStep = r * 1.5
+            var row = 0
+            var cy: CGFloat = 0
+            while cy < size.height + r {
+                var cx: CGFloat = row.isMultiple(of: 2) ? 0 : w / 2
+                while cx < size.width + w {
+                    var path = Path()
+                    for i in 0..<6 {
+                        let a = CGFloat(i) * .pi / 3 + .pi / 6
+                        let pt = CGPoint(x: cx + r * cos(a), y: cy + r * sin(a))
+                        if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+                    }
+                    path.closeSubpath()
+                    ctx.stroke(path, with: .color(tint.opacity(0.045)), lineWidth: 1)
+                    cx += w
+                }
+                cy += vStep; row += 1
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// 45° pinstripes.
+struct StripesBackground: View {
+    var tint: Color = .white
+    var body: some View {
+        Canvas { ctx, size in
+            let step: CGFloat = 22
+            var offset: CGFloat = -size.height
+            while offset < size.width {
+                var path = Path()
+                path.move(to: CGPoint(x: offset, y: size.height))
+                path.addLine(to: CGPoint(x: offset + size.height, y: 0))
+                ctx.stroke(path, with: .color(tint.opacity(0.04)), lineWidth: 1.2)
+                offset += step
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Faint film grain — seeded specks.
+struct GrainBackground: View {
+    var tint: Color = .white
+    var seed: UInt64 = 1
+    var body: some View {
+        Canvas { ctx, size in
+            var rng = SeededRNG(state: seed &* 0x9E3779B97F4A7C15 &+ 4242)
+            let count = Int(size.width * size.height / 900)
+            for _ in 0..<count {
+                let x = rng.next() * size.width
+                let y = rng.next() * size.height
+                let s = 0.6 + rng.next() * 0.9
+                ctx.fill(Path(ellipseIn: CGRect(x: x, y: y, width: s, height: s)),
+                         with: .color(tint.opacity(0.028 + rng.next() * 0.04)))
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
