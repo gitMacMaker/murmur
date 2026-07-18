@@ -30,7 +30,7 @@
     color: var(--ink);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
   .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
 
@@ -159,10 +159,10 @@
   }
 
   /* ---------- Skins strip ---------- */
-  .skins { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 30px; }
+  .skins { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 30px; }
   .skin-chip {
-    display: inline-flex; align-items: center; gap: 7px;
-    font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: 99px;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 99px;
     border: 1px solid rgba(0,0,0,0.14);
   }
   .skin-chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
@@ -245,7 +245,7 @@
     <a class="btn btn-primary" href="https://github.com/gitMacMaker/murmur/releases/latest"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg> Download for Mac</a>
     <a class="btn btn-secondary" href="https://github.com/gitMacMaker/murmur">View the source</a>
   </div>
-  <p class="meta">v2.6 · macOS 14+ (Apple Silicon) · MIT licensed · no account, no subscription, no server</p>
+  <p class="meta">v2.7 · macOS 14+ (Apple Silicon) · MIT licensed · no account, no subscription, no server</p>
 
   <div class="pill-stage">
     <div class="pill" aria-hidden="true">
@@ -289,21 +289,104 @@
     <p class="lede">Every skin restyles the whole app <em>and</em> the dictation pill — palettes, typefaces, textures. The Skin Studio lets you design your own from a color wheel, fine-tune every surface, and share it as a one-line code.</p>
     <div class="skins">
       <span class="skin-chip" style="background:#fdfcf8; color:#38342e"><i style="background:#8a5cf5"></i>Clean</span>
-      <span class="skin-chip" style="background:#2e2b28; color:#eee9e2"><i style="background:#fff"></i>Sketch</span>
+      <span class="skin-chip" style="background:#171b18; color:#d9d9d0"><i style="background:#8c8c8c"></i>Sketch</span>
       <span class="skin-chip" style="background:#0c170c; color:#73f28c"><i style="background:#73f28c"></i>Terminal</span>
-      <span class="skin-chip" style="background:#0d2952; color:#dbe7f7"><i style="background:#fff"></i>Blueprint</span>
-      <span class="skin-chip" style="background:#ebebeb; color:#111"><i style="background:#111"></i>Retro Mac</span>
+      <span class="skin-chip" style="background:#0d2952; color:#dbe7f7"><i style="background:#ffffff"></i>Blueprint</span>
+      <span class="skin-chip" style="background:#ebebeb; color:#111111"><i style="background:#111111"></i>Retro Mac</span>
       <span class="skin-chip" style="background:#140524; color:#ff9ad5"><i style="background:#ff4db8"></i>Neon</span>
       <span class="skin-chip" style="background:#f8f3e8; color:#4a3b28"><i style="background:#73593f"></i>Paper</span>
       <span class="skin-chip" style="background:#0a0e1e; color:#c3cdf5"><i style="background:#7c8cf0"></i>Midnight</span>
       <span class="skin-chip" style="background:#0f1b12; color:#b8e3c2"><i style="background:#70c087"></i>Forest</span>
       <span class="skin-chip" style="background:#fff0f6; color:#a13c6a"><i style="background:#f26ba8"></i>Candy</span>
-      <span class="skin-chip" style="background:#04131c; color:#8fd9e8"><i style="background:#59c7e6"></i>Ocean</span>
-      <span class="skin-chip" style="background:#170805; color:#ffab84"><i style="background:#ff7340"></i>Lava</span>
-      <span class="skin-chip" style="background:#141210; color:#e8c576"><i style="background:#deb858"></i>Gold</span>
-      <span class="skin-chip" style="background:#0d0d0a; color:#f2e626"><i style="background:#f2e626"></i>Cyber</span>
-      <span class="skin-chip" style="background:#fdf7e0; color:#8a6416"><i style="background:#cc9426"></i>Honey</span>
-      <span class="skin-chip" style="background:#fbf0f2; color:#a34a60"><i style="background:#cc5c7a"></i>Rose</span>
+      <span class="skin-chip" style="background:#04131C; color:#59C7E6"><i style="background:#59C7E6"></i>Ocean</span>
+      <span class="skin-chip" style="background:#170805; color:#FF7340"><i style="background:#FF7340"></i>Lava</span>
+      <span class="skin-chip" style="background:#171A1F; color:#8CA6C7"><i style="background:#8CA6C7"></i>Slate</span>
+      <span class="skin-chip" style="background:#140A1F; color:#B885F2"><i style="background:#B885F2"></i>Grape</span>
+      <span class="skin-chip" style="background:#1A120D; color:#C79E75"><i style="background:#C79E75"></i>Coffee</span>
+      <span class="skin-chip" style="background:#1A080D; color:#F25973"><i style="background:#F25973"></i>Cherry</span>
+      <span class="skin-chip" style="background:#14130F; color:#DEB859"><i style="background:#DEB859"></i>Gold</span>
+      <span class="skin-chip" style="background:#121724; color:#85ADEB"><i style="background:#85ADEB"></i>Denim</span>
+      <span class="skin-chip" style="background:#14170D; color:#B2BF66"><i style="background:#B2BF66"></i>Olive</span>
+      <span class="skin-chip" style="background:#1A1A1A; color:#BFBFBF"><i style="background:#BFBFBF"></i>Charcoal</span>
+      <span class="skin-chip" style="background:#0D0D0A; color:#F2E626"><i style="background:#F2E626"></i>Cyber</span>
+      <span class="skin-chip" style="background:#12141A; color:#99B2CC"><i style="background:#99B2CC"></i>Storm</span>
+      <span class="skin-chip" style="background:#120B05; color:#FA8C26"><i style="background:#FA8C26"></i>Pumpkin</span>
+      <span class="skin-chip" style="background:#EDF5FB; color:#4C85B8"><i style="background:#4C85B8"></i>Ice</span>
+      <span class="skin-chip" style="background:#F4F0FB; color:#8C6BCC"><i style="background:#8C6BCC"></i>Lavender</span>
+      <span class="skin-chip" style="background:#EDF9F1; color:#38996B"><i style="background:#38996B"></i>Mint</span>
+      <span class="skin-chip" style="background:#F6EEDF; color:#9E703D"><i style="background:#9E703D"></i>Sand</span>
+      <span class="skin-chip" style="background:#FBF0F1; color:#CC5C7A"><i style="background:#CC5C7A"></i>Rose</span>
+      <span class="skin-chip" style="background:#F4F2F0; color:#736B66"><i style="background:#736B66"></i>Linen</span>
+      <span class="skin-chip" style="background:#FCF5DE; color:#CC9426"><i style="background:#CC9426"></i>Honey</span>
+      <span class="skin-chip" style="background:#1F0508; color:#FA5959"><i style="background:#FA5959"></i>Crimson</span>
+      <span class="skin-chip" style="background:#0A0F29; color:#D9B24C"><i style="background:#D9B24C"></i>Royal</span>
+      <span class="skin-chip" style="background:#051A12; color:#4CE699"><i style="background:#4CE699"></i>Emerald</span>
+      <span class="skin-chip" style="background:#1A0F0A; color:#D98C59"><i style="background:#D98C59"></i>Copper</span>
+      <span class="skin-chip" style="background:#1A1C21; color:#BFCCE0"><i style="background:#BFCCE0"></i>Steel</span>
+      <span class="skin-chip" style="background:#1A0A17; color:#E680CC"><i style="background:#E680CC"></i>Plum</span>
+      <span class="skin-chip" style="background:#040406; color:#808C99"><i style="background:#808C99"></i>Abyss</span>
+      <span class="skin-chip" style="background:#08141A; color:#66F2BF"><i style="background:#66F2BF"></i>Aurora</span>
+      <span class="skin-chip" style="background:#0D0A24; color:#8C80F2"><i style="background:#8C80F2"></i>Indigo</span>
+      <span class="skin-chip" style="background:#081714; color:#59D9B2"><i style="background:#59D9B2"></i>Jade</span>
+      <span class="skin-chip" style="background:#121212; color:#E0E0E0"><i style="background:#E0E0E0"></i>Carbon</span>
+      <span class="skin-chip" style="background:#1A080F; color:#E67399"><i style="background:#E67399"></i>Wine</span>
+      <span class="skin-chip" style="background:#140E0B; color:#CCA68C"><i style="background:#CCA68C"></i>Cocoa</span>
+      <span class="skin-chip" style="background:#080D1A; color:#80B2F2"><i style="background:#80B2F2"></i>Navy</span>
+      <span class="skin-chip" style="background:#0F140A; color:#A6CC73"><i style="background:#A6CC73"></i>Moss</span>
+      <span class="skin-chip" style="background:#141417; color:#9EA3AD"><i style="background:#9EA3AD"></i>Graphite</span>
+      <span class="skin-chip" style="background:#120A1C; color:#BF99FA"><i style="background:#BF99FA"></i>Amethyst</span>
+      <span class="skin-chip" style="background:#170D05; color:#F29933"><i style="background:#F29933"></i>Ember</span>
+      <span class="skin-chip" style="background:#051417; color:#4CD9D9"><i style="background:#4CD9D9"></i>Teal</span>
+      <span class="skin-chip" style="background:#080D1F; color:#6699FF"><i style="background:#6699FF"></i>Sapphire</span>
+      <span class="skin-chip" style="background:#0A0A0D; color:#CCBFE6"><i style="background:#CCBFE6"></i>Onyx</span>
+      <span class="skin-chip" style="background:#17120A; color:#CC9E4C"><i style="background:#CC9E4C"></i>Bronze</span>
+      <span class="skin-chip" style="background:#0D081A; color:#D98CF2"><i style="background:#D98CF2"></i>Cosmos</span>
+      <span class="skin-chip" style="background:#0F0F14; color:#8C99BF"><i style="background:#8C99BF"></i>Shadow</span>
+      <span class="skin-chip" style="background:#F5F7FA; color:#738CAD"><i style="background:#738CAD"></i>Cloud</span>
+      <span class="skin-chip" style="background:#EBF9F5; color:#33998C"><i style="background:#33998C"></i>Seafoam</span>
+      <span class="skin-chip" style="background:#FCF2F0; color:#D97366"><i style="background:#D97366"></i>Blush</span>
+      <span class="skin-chip" style="background:#FEF9E6; color:#BF991A"><i style="background:#BF991A"></i>Butter</span>
+      <span class="skin-chip" style="background:#F6F2FC; color:#9973D9"><i style="background:#9973D9"></i>Lilac</span>
+      <span class="skin-chip" style="background:#FEF4EB; color:#E6804C"><i style="background:#E6804C"></i>Peach</span>
+      <span class="skin-chip" style="background:#F1F5ED; color:#739466"><i style="background:#739466"></i>Sage</span>
+      <span class="skin-chip" style="background:#F0F6FC; color:#5999E6"><i style="background:#5999E6"></i>Sky</span>
+      <span class="skin-chip" style="background:#FAF6F0; color:#998059"><i style="background:#998059"></i>Cream</span>
+      <span class="skin-chip" style="background:#F4F9EB; color:#80A64C"><i style="background:#80A64C"></i>Pistachio</span>
+      <span class="skin-chip" style="background:#F7F6F5; color:#8C808C"><i style="background:#8C808C"></i>Pearl</span>
+      <span class="skin-chip" style="background:#F1F4F9; color:#6680B2"><i style="background:#6680B2"></i>Chambray</span>
+      <span class="skin-chip" style="background:#FBF9FB; color:#B280BF"><i style="background:#B280BF"></i>Cotton</span>
+      <span class="skin-chip" style="background:#F4F4F4; color:#808085"><i style="background:#808085"></i>Fog</span>
+      <span class="skin-chip" style="background:#F0F4E6; color:#738C40"><i style="background:#738C40"></i>Matcha</span>
+      <span class="skin-chip" style="background:#FAF1F9; color:#BF66B2"><i style="background:#BF66B2"></i>Orchid</span>
+      <span class="skin-chip" style="background:#050F24; color:#598CFA"><i style="background:#598CFA"></i>Cobalt</span>
+      <span class="skin-chip" style="background:#1C0805; color:#FF6640"><i style="background:#FF6640"></i>Scarlet</span>
+      <span class="skin-chip" style="background:#171408; color:#E6BF40"><i style="background:#E6BF40"></i>Mustard</span>
+      <span class="skin-chip" style="background:#140812; color:#D973BF"><i style="background:#D973BF"></i>Velvet</span>
+      <span class="skin-chip" style="background:#0D1217; color:#CCE6FA"><i style="background:#CCE6FA"></i>Arctic</span>
+      <span class="skin-chip" style="background:#1A0E0A; color:#E08C66"><i style="background:#E08C66"></i>Terracotta</span>
+      <span class="skin-chip" style="background:#120A14; color:#B280D9"><i style="background:#B280D9"></i>Eggplant</span>
+      <span class="skin-chip" style="background:#08120F; color:#73BF99"><i style="background:#73BF99"></i>Seaweed</span>
+      <span class="skin-chip" style="background:#0D0B0D; color:#D9B2BF"><i style="background:#D9B2BF"></i>Noir</span>
+      <span class="skin-chip" style="background:#051214; color:#59BFCC"><i style="background:#59BFCC"></i>Petrol</span>
+      <span class="skin-chip" style="background:#170D09; color:#D9804C"><i style="background:#D9804C"></i>Sienna</span>
+      <span class="skin-chip" style="background:#0A0817; color:#998CFF"><i style="background:#998CFF"></i>Galaxy</span>
+      <span class="skin-chip" style="background:#08120A; color:#66CC80"><i style="background:#66CC80"></i>Hunter</span>
+      <span class="skin-chip" style="background:#17050A; color:#F26680"><i style="background:#F26680"></i>Merlot</span>
+      <span class="skin-chip" style="background:#131416; color:#B2BFCC"><i style="background:#B2BFCC"></i>Gunmetal</span>
+      <span class="skin-chip" style="background:#0F0814; color:#CC8CE6"><i style="background:#CC8CE6"></i>Blackberry</span>
+      <span class="skin-chip" style="background:#1A0F05; color:#FFA640"><i style="background:#FFA640"></i>Tangerine</span>
+      <span class="skin-chip" style="background:#FEFBF4; color:#A68C59"><i style="background:#A68C59"></i>Vanilla</span>
+      <span class="skin-chip" style="background:#FCF4F5; color:#CC808C"><i style="background:#CC808C"></i>Rosewater</span>
+      <span class="skin-chip" style="background:#F0F7FB; color:#4C8CBF"><i style="background:#4C8CBF"></i>Glacier</span>
+      <span class="skin-chip" style="background:#F0F9EC; color:#66A659"><i style="background:#66A659"></i>Meadow</span>
+      <span class="skin-chip" style="background:#F7F1E6; color:#A6804C"><i style="background:#A6804C"></i>Sandstone</span>
+      <span class="skin-chip" style="background:#F4F4FE; color:#8080E6"><i style="background:#8080E6"></i>Periwinkle</span>
+      <span class="skin-chip" style="background:#FCF6F2; color:#BF8C73"><i style="background:#BF8C73"></i>Shell</span>
+      <span class="skin-chip" style="background:#F9F9F7; color:#808C99"><i style="background:#808C99"></i>Porcelain</span>
+      <span class="skin-chip" style="background:#FEFCEB; color:#B8A81F"><i style="background:#B8A81F"></i>Lemon</span>
+      <span class="skin-chip" style="background:#FEF0F2; color:#EB6B8C"><i style="background:#EB6B8C"></i>Flamingo</span>
+      <span class="skin-chip" style="background:#F5F5F6; color:#8C8C99"><i style="background:#8C8C99"></i>Dove</span>
+      <span class="skin-chip" style="background:#F1FBF4; color:#4CA680"><i style="background:#4CA680"></i>Julep</span>
       <span class="skin-chip" style="background:linear-gradient(90deg,#f9f6ef,#e8e2ff); color:#5b3fb8"><i style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)"></i>Yours — Skin Studio</span>
     </div>
     <div class="shots" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
