@@ -259,6 +259,33 @@ enum TextCleaner {
         return style == 1 ? "Good \(part)," : "Good \(part)"
     }
 
+    /// Spoken web shorthand: "dot com" → ".com", "w w w dot" → "www.".
+    static func applyWebShortcuts(_ text: String) -> String {
+        var s = text
+        for tld in ["com", "org", "net", "io", "dev", "app", "ai", "co", "edu", "gov"] {
+            s = s.replacingOccurrences(of: "(?i)\\s*\\bdot \(tld)\\b",
+                                       with: ".\(tld)",
+                                       options: .regularExpression)
+        }
+        s = s.replacingOccurrences(of: "(?i)\\bw w w dot\\s*", with: "www.",
+                                   options: .regularExpression)
+        s = s.replacingOccurrences(of: "(?i)\\bdouble u double u double u dot\\s*", with: "www.",
+                                   options: .regularExpression)
+        return s
+    }
+
+    /// Detects a trailing "send it"/"send that" command: returns the text with
+    /// the phrase stripped, and whether Return should be pressed after insert.
+    static func extractSendIt(_ text: String) -> (text: String, send: Bool) {
+        let pattern = "[,.!?]?\\s*(?i:\\bsend (it|that|this)\\b)[,.!?]?\\s*$"
+        guard text.range(of: pattern, options: .regularExpression) != nil else {
+            return (text, false)
+        }
+        let stripped = text.replacingOccurrences(of: pattern, with: "",
+                                                 options: .regularExpression)
+        return (stripped, true)
+    }
+
     /// "scratch that" — drops everything dictated before (and including) the
     /// last occurrence, keeping only what was said after it.
     static func applyScratchThat(_ text: String) -> String {

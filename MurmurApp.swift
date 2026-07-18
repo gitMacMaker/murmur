@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Carbon.HIToolbox
 import Combine
 import Speech
 
@@ -41,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Set by menu ▸ Dictate to Clipboard: the next delivery copies instead
     /// of inserting, then the flag clears.
     private var forceClipboardOnce = false
+    /// Set by menu ▸ Dictate to Journal: the next delivery appends to the
+    /// journal file instead of inserting.
+    private var forceJournalOnce = false
     /// Duration of the dictation being processed, for history metadata.
     private var lastSessionSeconds: Double?
     /// Updates the menu-bar timer while recording (when enabled).
@@ -193,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let rule = ruleForFrontmostApp()
         if rule?.blocked == true { return } // Murmur is off in this app
         do {
-            try transcriber.start(localeOverride: rule?.localeID)
+            try transcriber.start(localeOverride: rule?.localeID ?? keyboardLocaleOverride())
         } catch {
             pill.state.phase = .error
             pill.state.text = error.localizedDescription
@@ -285,6 +289,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cancelRecording() {
         guard phase == .recording else { return }
+        // Don't lose what was said: keep the partial transcript in History.
+        let partial = pill.state.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if settings.keepCanceled, !partial.isEmpty, !commandMode {
+            _ = settings.record(partial, app: "(canceled)", saveToHistory: true)
+        }
+        commandMode = false
         silenceTimer?.invalidate()
         silenceTimer = nil
         stopCaffeinate()
@@ -376,6 +386,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             usedCommands = text != before
         }
         if settings.spokenPunctuation { text = TextCleaner.applySpokenPunctuation(text) }
+        if settings.webShortcuts { text = TextCleaner.applyWebShortcuts(text) }
+        var pressReturnAfter = false
+        if settings.sendItCommand {
+            let (stripped, send) = TextCleaner.extractSendIt(text)
+            text = stripped
+            pressReturnAfter = send
+        }
         if settings.replacementsEnabled {
             text = TextCleaner.applyReplacements(text, settings.replacements)
         }
@@ -451,21 +468,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 customPrompt = grammarNote
             }
         }
+        // Translate mode outranks voices and grammar: everything you dictate
+        // comes out in the target language.
+        if settings.translateEnabled, !settings.translateTo.isEmpty {
+            usePolish = true
+            tone = .custom
+            customPrompt = "Translate the text into \(settings.translateTo). Output ONLY the translation, no notes."
+        }
         if settings.polishMinWords > 0, wordCount < settings.polishMinWords {
             usePolish = false // too short to be worth the round-trip
         }
+        let ruleEnter = rule?.pressEnter == true
+        let sendAfter = pressReturnAfter || ruleEnter
         if usePolish {
             TextCleaner.polish(text, tone: tone,
                                custom: customPrompt) { [weak self] polished in
-                self?.deliver(polished, usedCommands: usedCommands, ocase: ocase)
+                self?.deliver(polished, usedCommands: usedCommands, ocase: ocase,
+                              pressReturn: sendAfter)
             }
         } else {
-            deliver(text, usedCommands: usedCommands, ocase: ocase)
+            deliver(text, usedCommands: usedCommands, ocase: ocase, pressReturn: sendAfter)
         }
     }
 
     private func deliver(_ rawText: String, usedCommands: Bool = false,
-                         ocase: OutputCase? = nil) {
+                         ocase: OutputCase? = nil, pressReturn: Bool = false) {
         var text = TextCleaner.applyCase(rawText, ocase ?? settings.outputCase)
         if settings.noTrailingPeriod, text.hasSuffix(".") { text = String(text.dropLast()) }
         let words = text.split(whereSeparator: \.isWhitespace).count
@@ -476,10 +503,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let excluded = settings.excludedApps.contains { app in
             !app.isEmpty && (pill.state.targetApp ?? "").localizedCaseInsensitiveContains(app)
         }
+        // Journal mode: append to the journal file, no insertion.
+        if forceJournalOnce {
+            forceJournalOnce = false
+            appendToJournal(text)
+            pill.state.copiedMode = false
+            pill.state.phase = .done
+            pill.state.text = "Saved to journal ✓"
+            play(.insert)
+            setIcon(recording: false)
+            phase = .idle
+            _ = settings.record(text, usedPolish: false, usedCommands: usedCommands,
+                                app: "Journal", seconds: lastSessionSeconds)
+            lastSessionSeconds = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + settings.doneLinger) { [weak self] in
+                guard let self, self.phase == .idle else { return }
+                self.pill.hide(toIdleDot: self.settings.idleIndicator)
+            }
+            return
+        }
+        // Per-app rule can force typing-style insertion (terminals).
+        let ruleTyping = ruleForFrontmostApp()?.typeInsert == true
         let copyMode = settings.insertTarget == .clipboardOnly || tooLong || oneShot || excluded
         if copyMode {
             Inserter.copyOnly(text)
             lastInsertedText = nil   // a clipboard copy isn't undoable
+        } else if ruleTyping, AXIsProcessTrusted() {
+            var out = text
+            if settings.trailingNewline { out += "\n" }
+            else if settings.trailingSpace { out += " " }
+            Inserter.type(out)
+            lastInsertedText = out
+            undoStack.append(out)
+            if undoStack.count > max(1, settings.undoDepth) { undoStack.removeFirst() }
         } else {
             var out = text
             if settings.prefixEnabled, !settings.prefixText.isEmpty {
@@ -517,6 +573,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         setIcon(recording: false)
         phase = .idle
+        if pressReturn, !copyMode, AXIsProcessTrusted() {
+            // Give the paste a moment to land, then hit Return ("send it").
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55 + settings.insertDelay) {
+                let src = CGEventSource(stateID: .combinedSessionState)
+                CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: true)?.post(tap: .cghidEventTap)
+                CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: false)?.post(tap: .cghidEventTap)
+            }
+        }
         let hitGoal = settings.goalCelebration && settings.dailyGoal > 0
             && wordsBeforeGoal < settings.dailyGoal && settings.todayWords >= settings.dailyGoal
         let celebrating = !unlocked.isEmpty || hitGoal
@@ -634,7 +698,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                     action: #selector(dictateToClipboard), keyEquivalent: "")
             toClip.target = self
             menu.addItem(toClip)
+
+            let toJournal = NSMenuItem(title: "Dictate to Journal",
+                                       action: #selector(dictateToJournal), keyEquivalent: "j")
+            toJournal.target = self
+            toJournal.toolTip = "Appends a dated entry to your journal file"
+            menu.addItem(toJournal)
         }
+
+        let toneParent = NSMenuItem(title: "Polish Tone", action: nil, keyEquivalent: "")
+        let toneMenu = NSMenu()
+        let polishToggle = NSMenuItem(title: settings.polishEnabled ? "✓ AI Polish On" : "AI Polish Off",
+                                      action: #selector(togglePolish), keyEquivalent: "")
+        polishToggle.target = self
+        toneMenu.addItem(polishToggle)
+        toneMenu.addItem(.separator())
+        for tone in PolishTone.allCases {
+            let item = NSMenuItem(title: tone.label, action: #selector(switchTone(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = tone.rawValue
+            item.state = settings.polishTone == tone ? .on : .off
+            toneMenu.addItem(item)
+        }
+        toneParent.submenu = toneMenu
+        menu.addItem(toneParent)
+
+        let cheat = NSMenuItem(title: "Cheat Sheet", action: #selector(openCheatSheet), keyEquivalent: "/")
+        cheat.target = self
+        menu.addItem(cheat)
 
         let pause = NSMenuItem(title: paused ? "Resume Murmur" : "Pause Murmur",
                                action: #selector(togglePause), keyEquivalent: "")
@@ -656,7 +747,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if lastInsertedText != nil {
             let undo = NSMenuItem(title: "Undo Last Insert",
-                                  action: #selector(undoLastInsert), keyEquivalent: "")
+                                  action: #selector(undoLastInsert), keyEquivalent: "u")
             undo.target = self
             menu.addItem(undo)
         }
@@ -815,7 +906,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fm = FileManager.default
         guard let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         else { return }
-        let dir = base.appendingPathComponent("Murmur/Backups", isDirectory: true)
+        let dir = settings.backupFolderPath.isEmpty
+            ? base.appendingPathComponent("Murmur/Backups", isDirectory: true)
+            : URL(fileURLWithPath: (settings.backupFolderPath as NSString).expandingTildeInPath)
         do {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
@@ -867,6 +960,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         d.set(today, forKey: "lastDailyExport")
     }
 
+    /// Appends a dated entry to the journal file (creating it if needed).
+    private func appendToJournal(_ text: String) {
+        var path = settings.journalPath
+        if path.isEmpty {
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            path = docs.appendingPathComponent("Murmur Journal.md").path
+            settings.journalPath = path
+        }
+        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let tf = DateFormatter(); tf.dateStyle = .medium; tf.timeStyle = .short
+        let entry = "\n\n## \(tf.string(from: Date()))\n\(text)"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(Data(entry.utf8))
+            try? handle.close()
+        } else {
+            try? ("# Murmur Journal" + entry).write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    @objc private func dictateToJournal() {
+        guard phase == .idle else { return }
+        forceJournalOnce = true
+        hotkeys.handsFree = true
+        startRecording()
+    }
+
+    /// The recognition locale implied by the current keyboard layout, when
+    /// "Auto language by keyboard" is on and the layout's language is supported.
+    private func keyboardLocaleOverride() -> String? {
+        guard settings.autoLanguageByKeyboard,
+              let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let langsPtr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages)
+        else { return nil }
+        let langs = Unmanaged<CFArray>.fromOpaque(langsPtr).takeUnretainedValue() as? [String] ?? []
+        guard let lang = langs.first else { return nil }
+        // Exact match first, then language-prefix match.
+        let supported = GeneralPane.languages.map(\.0)
+        if let exact = supported.first(where: { $0.lowercased() == lang.lowercased() }) { return exact }
+        return supported.first { $0.lowercased().hasPrefix(lang.lowercased() + "-") }
+    }
+
     @objc private func dictateToClipboard() {
         guard phase == .idle else { return }
         forceClipboardOnce = true
@@ -907,6 +1042,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }.resume()
+    }
+
+    @objc private func togglePolish() {
+        settings.polishEnabled.toggle()
+        rebuildMenu()
+    }
+
+    @objc private func switchTone(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let tone = PolishTone(rawValue: raw) else { return }
+        settings.polishTone = tone
+        rebuildMenu()
+    }
+
+    @objc private func openCheatSheet() {
+        CheatSheetWindowController.shared.show()
     }
 
     @objc private func togglePause() {

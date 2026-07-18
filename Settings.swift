@@ -720,10 +720,15 @@ struct AppRule: Codable, Identifiable, Equatable {
     /// True = force an AI grammar/spelling fix pass in this app (even when
     /// polish is globally off), without changing wording or tone.
     var grammar: Bool?
+    /// True = press Return after inserting here (auto-send in chat apps).
+    var pressEnter: Bool?
+    /// True = insert by typing here (for terminals that block paste).
+    var typeInsert: Bool?
 
     init(appName: String, tone: PolishTone = .clean, ocase: OutputCase = .asSpoken,
          polish: Bool? = nil, customPrompt: String = "", localeID: String? = nil,
-         blocked: Bool = false, grammar: Bool? = nil) {
+         blocked: Bool = false, grammar: Bool? = nil,
+         pressEnter: Bool? = nil, typeInsert: Bool? = nil) {
         self.appName = appName
         self.tone = tone
         self.ocase = ocase
@@ -732,6 +737,8 @@ struct AppRule: Codable, Identifiable, Equatable {
         self.localeID = localeID
         self.blocked = blocked
         self.grammar = grammar
+        self.pressEnter = pressEnter
+        self.typeInsert = typeInsert
     }
 
     // Manual decoding so rules saved before newer fields existed still load.
@@ -746,6 +753,8 @@ struct AppRule: Codable, Identifiable, Equatable {
         localeID = try c.decodeIfPresent(String.self, forKey: .localeID)
         blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
         grammar = try c.decodeIfPresent(Bool.self, forKey: .grammar)
+        pressEnter = try c.decodeIfPresent(Bool.self, forKey: .pressEnter)
+        typeInsert = try c.decodeIfPresent(Bool.self, forKey: .typeInsert)
     }
 }
 
@@ -1086,6 +1095,16 @@ final class AppSettings: ObservableObject {
     /// Items removed by the last "Clear History", for Undo (not persisted).
     @Published var lastCleared: [HistoryItem] = []
 
+    // v2.8 — workflow features
+    @Published var sendItCommand: Bool { didSet { d.set(sendItCommand, forKey: "sendIt") } }
+    @Published var translateEnabled: Bool { didSet { d.set(translateEnabled, forKey: "translateOn") } }
+    @Published var translateTo: String { didSet { d.set(translateTo, forKey: "translateTo") } }
+    @Published var autoLanguageByKeyboard: Bool { didSet { d.set(autoLanguageByKeyboard, forKey: "autoLangKbd") } }
+    @Published var webShortcuts: Bool { didSet { d.set(webShortcuts, forKey: "webShortcuts") } }
+    @Published var journalPath: String { didSet { d.set(journalPath, forKey: "journalPath") } }
+    @Published var keepCanceled: Bool { didSet { d.set(keepCanceled, forKey: "keepCanceled") } }
+    @Published var backupFolderPath: String { didSet { d.set(backupFolderPath, forKey: "backupFolder") } }
+
     // v2.6 — General
     @Published var polishTimeout: Int { didSet { d.set(polishTimeout, forKey: "polishTimeout") } }
     @Published var apiModel: String { didSet { d.set(apiModel, forKey: "apiModel") } }
@@ -1376,6 +1395,15 @@ final class AppSettings: ObservableObject {
             var commandHotkey: HotkeyKey?
             var customSkinTexture: String?
         }
+
+        /// v2.8 workflow additions.
+        var extra5: Extra5?
+
+        struct Extra5: Codable {
+            var sendItCommand, translateEnabled, autoLanguageByKeyboard, webShortcuts,
+                keepCanceled: Bool?
+            var translateTo, journalPath, backupFolderPath: String?
+        }
     }
 
     func exportBackup() throws -> Data {
@@ -1508,7 +1536,12 @@ final class AppSettings: ObservableObject {
                 listeningLabel: listeningLabel, properNouns: properNouns,
                 historyMarkFavorites: historyMarkFavorites,
                 commandModeEnabled: commandModeEnabled, autoLearnVocab: autoLearnVocab,
-                commandHotkey: commandHotkey, customSkinTexture: customSkinTexture.rawValue))
+                commandHotkey: commandHotkey, customSkinTexture: customSkinTexture.rawValue),
+            extra5: Backup.Extra5(
+                sendItCommand: sendItCommand, translateEnabled: translateEnabled,
+                autoLanguageByKeyboard: autoLanguageByKeyboard, webShortcuts: webShortcuts,
+                keepCanceled: keepCanceled, translateTo: translateTo,
+                journalPath: journalPath, backupFolderPath: backupFolderPath))
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try enc.encode(b)
@@ -1754,6 +1787,16 @@ final class AppSettings: ObservableObject {
             if let v = e.autoLearnVocab { autoLearnVocab = v }
             if let v = e.commandHotkey { commandHotkey = v }
             if let v = e.customSkinTexture { customSkinTexture = SkinTexture(rawValue: v) ?? customSkinTexture }
+        }
+        if let e = b.extra5 {
+            if let v = e.sendItCommand { sendItCommand = v }
+            if let v = e.translateEnabled { translateEnabled = v }
+            if let v = e.autoLanguageByKeyboard { autoLanguageByKeyboard = v }
+            if let v = e.webShortcuts { webShortcuts = v }
+            if let v = e.keepCanceled { keepCanceled = v }
+            if let v = e.translateTo { translateTo = v }
+            if let v = e.journalPath { journalPath = v }
+            if let v = e.backupFolderPath { backupFolderPath = v }
         }
     }
 
@@ -2189,6 +2232,14 @@ final class AppSettings: ObservableObject {
         historyMarkFavorites = d.stringArray(forKey: "histFavs") ?? []
         autoExportDaily = d.bool(forKey: "autoExport")
         historyGroupByApp = d.bool(forKey: "histGroupApp")
+        sendItCommand = d.bool(forKey: "sendIt")
+        translateEnabled = d.bool(forKey: "translateOn")
+        translateTo = d.string(forKey: "translateTo") ?? "Spanish"
+        autoLanguageByKeyboard = d.bool(forKey: "autoLangKbd")
+        webShortcuts = d.object(forKey: "webShortcuts") as? Bool ?? true
+        journalPath = d.string(forKey: "journalPath") ?? ""
+        keepCanceled = d.object(forKey: "keepCanceled") as? Bool ?? true
+        backupFolderPath = d.string(forKey: "backupFolder") ?? ""
         pinnedFirst = d.object(forKey: "pinnedFirst") as? Bool ?? true
         historyPaused = d.bool(forKey: "histPaused")
         excludeClipboardOnly = d.bool(forKey: "histNoClip")
@@ -2238,6 +2289,105 @@ final class SettingsWindowController {
         window?.level = AppSettings.shared.settingsAlwaysOnTop ? .floating : .normal
         WindowPolicyManager.shared.opened(window!)
         window?.makeKeyAndOrderFront(nil)
+    }
+}
+
+// MARK: - Cheat sheet
+
+/// A compact quick-reference window: hotkeys, voice commands, variables.
+final class CheatSheetWindowController {
+    static let shared = CheatSheetWindowController()
+    private var window: NSWindow?
+
+    func show() {
+        if window == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 560),
+                             styleMask: [.titled, .closable, .fullSizeContentView],
+                             backing: .buffered, defer: false)
+            w.title = "Murmur Cheat Sheet"
+            w.titlebarAppearsTransparent = true
+            w.isReleasedWhenClosed = false
+            w.center()
+            w.contentView = NSHostingView(rootView: CheatSheetView())
+            window = w
+        }
+        window?.appearance = AppSettings.shared.skin.forcedAppearance
+        WindowPolicyManager.shared.opened(window!)
+        window?.makeKeyAndOrderFront(nil)
+    }
+}
+
+struct CheatSheetView: View {
+    @ObservedObject var settings = AppSettings.shared
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let p = Palette.of(scheme)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Cheat Sheet")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(p.text)
+                    .padding(.top, 30)
+
+                group("Keys", [
+                    ("Hold \(settings.hotkey.name)", "talk, release to insert"),
+                    ("Quick-tap \(settings.hotkey.name)", "hands-free — tap again to finish"),
+                    ("Hold \(settings.commandHotkey.name)", "AI command on selected text"),
+                    ("Esc", "cancel dictation"),
+                ], p)
+
+                group("Say", [
+                    ("\u{201C}new line\u{201D} / \u{201C}new paragraph\u{201D}", "line breaks"),
+                    ("\u{201C}scratch that\u{201D}", "restart the sentence"),
+                    ("\u{201C}send it\u{201D}", "insert, then press Return"),
+                    ("\u{201C}fire emoji\u{201D}, \u{201C}check mark\u{201D}…", "symbols & emoji"),
+                    ("\u{201C}period\u{201D}, \u{201C}comma\u{201D}…", "spoken punctuation (opt-in)"),
+                    ("\u{201C}dot com\u{201D}, \u{201C}w w w dot\u{201D}", "web addresses"),
+                    ("\u{201C}today's date\u{201D} / \u{201C}current time\u{201D}", "inserts them"),
+                ], p)
+
+                group("Snippet variables", [
+                    ("{date} {time} {weekday}", "when it's typed"),
+                    ("{month} {year} {greeting}", "more time helpers"),
+                    ("{app}", "the app you're dictating into"),
+                    ("{clipboard}", "current clipboard"),
+                    ("{cursor}", "where the cursor lands after insert"),
+                ], p)
+
+                Text("Menu bar ▸ Murmur has the rest: hands-free start, clipboard/journal dictation, tones, and undo.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(p.subtext)
+                    .padding(.bottom, 24)
+            }
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: 420, height: 560)
+        .background(p.bg)
+    }
+
+    private func group(_ title: String, _ rows: [(String, String)], _ p: Palette) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel(text: title)
+            CardGroup {
+                ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
+                    if i > 0 { RowDivider() }
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(row.0)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(p.text)
+                        Spacer()
+                        Text(row.1)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(p.subtext)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                }
+            }
+        }
     }
 }
 
@@ -2761,6 +2911,56 @@ struct GeneralPane: View {
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                 }
                 RowDivider()
+                PRow(title: "“Send it”",
+                     subtitle: "End a dictation with “send it” to press Return after inserting") {
+                    Toggle("", isOn: $settings.sendItCommand)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Web shortcuts",
+                     subtitle: "“dot com” → .com · “w w w dot” → www.") {
+                    Toggle("", isOn: $settings.webShortcuts)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Translate everything",
+                     subtitle: "Dictate in any language — it comes out in this one (uses AI polish)") {
+                    HStack(spacing: 6) {
+                        TextField("Spanish", text: $settings.translateTo)
+                            .textFieldStyle(.roundedBorder).font(.system(size: 12)).frame(width: 110)
+                        Toggle("", isOn: $settings.translateEnabled)
+                            .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                }
+                RowDivider()
+                PRow(title: "Language follows keyboard",
+                     subtitle: "Recognition switches with your input source (per-app rules still win)") {
+                    Toggle("", isOn: $settings.autoLanguageByKeyboard)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Keep canceled dictations",
+                     subtitle: "Esc saves the partial transcript to History instead of losing it") {
+                    Toggle("", isOn: $settings.keepCanceled)
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Journal file",
+                     subtitle: "Menu ▸ Dictate to Journal appends dated entries here") {
+                    HStack(spacing: 6) {
+                        TextField("~/Documents/Murmur Journal.md", text: $settings.journalPath)
+                            .textFieldStyle(.roundedBorder).font(.system(size: 11)).frame(width: 190)
+                        Button("Choose…") {
+                            let panel = NSSavePanel()
+                            panel.nameFieldStringValue = "Murmur Journal.md"
+                            if panel.runModal() == .OK, let url = panel.url {
+                                settings.journalPath = url.path
+                            }
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                RowDivider()
                 PRow(title: "Tap vs. hold threshold",
                      subtitle: "Presses shorter than this count as a hands-free tap") {
                     HStack(spacing: 8) {
@@ -3105,6 +3305,24 @@ struct GeneralPane: View {
                         }
                     }
                     .controlSize(.small)
+                }
+                RowDivider()
+                PRow(title: "Backup folder",
+                     subtitle: "Where backups land — point it at iCloud Drive to sync between Macs") {
+                    HStack(spacing: 6) {
+                        TextField("Application Support (default)", text: $settings.backupFolderPath)
+                            .textFieldStyle(.roundedBorder).font(.system(size: 11)).frame(width: 180)
+                        Button("Choose…") {
+                            let panel = NSOpenPanel()
+                            panel.canChooseFiles = false
+                            panel.canChooseDirectories = true
+                            panel.canCreateDirectories = true
+                            if panel.runModal() == .OK, let url = panel.url {
+                                settings.backupFolderPath = url.path
+                            }
+                        }
+                        .controlSize(.small)
+                    }
                 }
                 RowDivider()
                 PRow(title: "Auto-backup weekly",
@@ -3956,6 +4174,24 @@ struct AppsPane: View {
                         Toggle("", isOn: Binding(
                             get: { rule.grammar ?? false },
                             set: { rule.grammar = $0 }
+                        ))
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Press Return after insert",
+                         subtitle: "Auto-send — perfect for Slack, Messages, Discord") {
+                        Toggle("", isOn: Binding(
+                            get: { rule.pressEnter ?? false },
+                            set: { rule.pressEnter = $0 }
+                        ))
+                        .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    }
+                    RowDivider()
+                    PRow(title: "Insert by typing",
+                         subtitle: "For terminals and apps that block paste") {
+                        Toggle("", isOn: Binding(
+                            get: { rule.typeInsert ?? false },
+                            set: { rule.typeInsert = $0 }
                         ))
                         .toggleStyle(.switch).labelsHidden().controlSize(.small)
                     }

@@ -188,6 +188,30 @@ for skin in AppSkin.allCases where skin.spec != nil {
 }
 print("skins: \(AppSkin.allCases.count)")
 
+// v2.8 workflow features.
+let webOut = TextCleaner.applyWebShortcuts("go to getmurmur dot com or w w w dot example dot org")
+print("web: \(webOut.debugDescription)")
+assert(webOut == "go to getmurmur.com or www.example.org", "web shortcuts: \(webOut)")
+
+let sendYes = TextCleaner.extractSendIt("on my way, send it")
+assert(sendYes.text == "on my way" && sendYes.send, "send it strip: \(sendYes)")
+let sendNo = TextCleaner.extractSendIt("please send it to Bob tomorrow")
+assert(!sendNo.send, "send it mid-sentence must not trigger")
+let sendThat = TextCleaner.extractSendIt("sounds good. Send that!")
+assert(sendThat.text == "sounds good" && sendThat.send, "send that: \(sendThat)")
+
+let ruleNew = try! JSONDecoder().decode([AppRule].self,
+    from: Data(#"[{"appName":"Slack","pressEnter":true,"typeInsert":false}]"#.utf8))
+assert(ruleNew[0].pressEnter == true && ruleNew[0].typeInsert == false, "rule new fields")
+let ruleOld3 = try! JSONDecoder().decode([AppRule].self, from: Data(#"[{"appName":"X"}]"#.utf8))
+assert(ruleOld3[0].pressEnter == nil, "rule back-compat pressEnter")
+
+let bk6 = try! AppSettings.shared.exportBackup()
+let dec6 = try! JSONDecoder().decode(AppSettings.Backup.self, from: bk6)
+assert(dec6.extra5 != nil, "backup missing extra5")
+assert(dec6.extra5?.translateTo == AppSettings.shared.translateTo, "extra5 roundtrip")
+print("v2.8 workflow OK")
+
 // Textures: enum count, spec assignments, custom texture in share/backup.
 assert(SkinTexture.allCases.count == 10, "texture count")
 assert(AppSkin.honey.spec?.texture == .hexagons, "honey hexagons")
@@ -397,3 +421,6 @@ snap(DictionaryPreview(), width: 524, height: 500, path: "preview_dictionary.png
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_settings.png")
 snap(AppearancePreview(), width: 524, height: 500, path: "preview_style.png")
 snap(OnboardingView(onDone: {}), width: 440, height: 700, path: "preview_onboarding.png")
+
+// Cheat Sheet render
+snap(CheatSheetView(), width: 420, height: 560, path: "preview_cheatsheet.png")
