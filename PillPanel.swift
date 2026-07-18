@@ -389,9 +389,12 @@ struct PillBody: View {
     @ViewBuilder
     private func classicBackground(top: Color, bottom: Color, opacity: Double) -> some View {
         if pillSkin == .sketch {
-            // Hand-drawn: flat paper/board fill with a wobbly double ink outline.
-            let paper: Color = isDark ? Color(white: 0.08) : Color(red: 0.99, green: 0.98, blue: 0.955)
-            let sketchInk: Color = isDark ? .white.opacity(0.85) : Color(white: 0.2).opacity(0.9)
+            // Hand-drawn: flat paper/board fill with a wobbly double ink
+            // outline. Dark = chalkboard, so the chalk stays soft, not glaring.
+            let paper: Color = isDark
+                ? Color(red: 0.10, green: 0.12, blue: 0.11)
+                : Color(red: 0.99, green: 0.98, blue: 0.955)
+            let sketchInk: Color = isDark ? .white.opacity(0.55) : Color(white: 0.2).opacity(0.9)
             let r = pillRadius(200)
             RoundedRectangle(cornerRadius: r, style: .continuous)
                 .fill(paper.opacity(opacity))

@@ -31,6 +31,15 @@ struct Palette {
         text: Color(red: 0.94, green: 0.93, blue: 0.92),
         subtext: Color(red: 0.64, green: 0.62, blue: 0.59)
     )
+    /// Dark sketch = a proper chalkboard: green-slate board, warm chalk text.
+    static let sketchDark = Palette(
+        bg: Color(red: 0.088, green: 0.104, blue: 0.096),
+        sidebar: Color(red: 0.104, green: 0.122, blue: 0.112),
+        card: Color(red: 0.125, green: 0.145, blue: 0.134),
+        border: Color.white.opacity(0.10),
+        text: Color(red: 0.92, green: 0.92, blue: 0.87),
+        subtext: Color(red: 0.63, green: 0.65, blue: 0.60)
+    )
 
     static let terminal = Palette(
         bg: Color(red: 0.024, green: 0.045, blue: 0.024),
@@ -105,7 +114,8 @@ struct Palette {
     static func of(_ scheme: ColorScheme, skin: AppSkin) -> Palette {
         if let spec = skin.spec { return spec.palette }
         switch skin {
-        case .clean, .sketch: return scheme == .dark ? .dark : .light
+        case .sketch: return scheme == .dark ? .sketchDark : .light
+        case .clean: return scheme == .dark ? .dark : .light
         case .terminal: return .terminal
         case .blueprint: return .blueprint
         case .retro: return .retro
@@ -131,6 +141,8 @@ struct Palette {
         case .midnight: return Color(red: 0.55, green: 0.62, blue: 0.98)
         case .forest: return Color(red: 0.48, green: 0.80, blue: 0.58)
         case .candy: return Color(red: 0.949, green: 0.420, blue: 0.659)
+        case .sketch:
+            return scheme == .dark ? Color.white.opacity(0.55) : Color(white: 0.22).opacity(0.85)
         default:
             return scheme == .dark ? Color.white.opacity(0.8) : Color(white: 0.22).opacity(0.85)
         }
@@ -290,7 +302,7 @@ struct ScribbleBackground: View {
         Canvas { ctx, size in
             var rng = SeededRNG(state: seed &* 0x9E3779B97F4A7C15 &+ 12345)
             let base = scheme == .dark ? Color.white : Color(white: 0.2)
-            let ink = base.opacity(scheme == .dark ? 0.045 : 0.055)
+            let ink = base.opacity(scheme == .dark ? 0.06 : 0.055)
 
             // Hatch clusters: little groups of 2–4 parallel wobbly strokes.
             let clusters = Int(size.width * size.height / 16000) + 10
@@ -652,7 +664,7 @@ struct CardGroup<Content: View>: View {
             }
             .shadow(color: shadowColor, radius: skin == .retro || skin == .neon ? (skin == .retro ? 0 : 14) : 3,
                     x: skin == .retro ? 3 : 0, y: skin == .retro ? 3 : 1)
-            .rotationEffect(.degrees(skin == .sketch ? -0.15 : 0))
+            .rotationEffect(.degrees(skin == .sketch ? -0.3 : 0))
     }
 
     private var shadowColor: Color {
@@ -772,5 +784,13 @@ struct SectionLabel: View {
             .kerning(settings.sketchMode ? 0 : 0.4)
             .foregroundStyle(Palette.of(scheme).subtext)
             .padding(.leading, 2)
+            .overlay(alignment: .bottomLeading) {
+                if settings.sketchMode {
+                    SketchyLine(seed: 8)
+                        .stroke(Palette.ink(scheme).opacity(0.5), lineWidth: 1)
+                        .frame(width: 44, height: 2)
+                        .offset(x: 2, y: 4)
+                }
+            }
     }
 }
