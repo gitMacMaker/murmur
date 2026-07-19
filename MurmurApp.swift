@@ -436,6 +436,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             text = ""
         }
         guard !text.isEmpty else {
+            // "Send it" with nothing to insert = just press Return on whatever
+            // is already in the field (send an already-typed message).
+            if pressReturnAfter, AXIsProcessTrusted() {
+                pill.state.copiedMode = false
+                pill.state.phase = .done
+                pill.state.text = "Sent ✓"
+                play(.insert)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in self?.pressReturnKey() }
+                phase = .idle
+                setIcon(recording: false)
+                DispatchQueue.main.asyncAfter(deadline: .now() + max(1.0, settings.doneLinger)) { [weak self] in
+                    guard let self, self.phase == .idle else { return }
+                    self.pill.hide(toIdleDot: self.settings.idleIndicator)
+                }
+                return
+            }
             phase = .idle
             pill.hide(toIdleDot: settings.idleIndicator)
             setIcon(recording: false)
@@ -575,10 +591,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         phase = .idle
         if pressReturn, !copyMode, AXIsProcessTrusted() {
             // Give the paste a moment to land, then hit Return ("send it").
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55 + settings.insertDelay) {
-                let src = CGEventSource(stateID: .combinedSessionState)
-                CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: true)?.post(tap: .cghidEventTap)
-                CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: false)?.post(tap: .cghidEventTap)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 + settings.insertDelay) { [weak self] in
+                self?.pressReturnKey()
             }
         }
         let hitGoal = settings.goalCelebration && settings.dailyGoal > 0
@@ -1042,6 +1056,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }.resume()
+    }
+
+    /// Posts a Return keypress to the frontmost app (for "send it").
+    private func pressReturnKey() {
+        guard AXIsProcessTrusted() else { return }
+        let src = CGEventSource(stateID: .combinedSessionState)
+        CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: true)?.post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: false)?.post(tap: .cghidEventTap)
     }
 
     @objc private func togglePolish() {
