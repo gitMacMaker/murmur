@@ -182,7 +182,7 @@ assert(oldRule2[0].grammar == nil, "grammar back-compat")
 print("apps tab rules OK")
 
 // An even 100 skins (99 named + Custom), every spec resolving to a palette.
-assert(AppSkin.allCases.count == 100, "skin count: \(AppSkin.allCases.count)")
+assert(AppSkin.allCases.count == 101, "skin count: \(AppSkin.allCases.count)")
 for skin in AppSkin.allCases where skin.spec != nil {
     _ = skin.spec!.palette  // touch every generated palette
 }
@@ -399,6 +399,8 @@ struct AppsPreview: View {
 snap(AppsPreview(), width: 524, height: 760, path: "preview_apps.png")
 AppSettings.shared.appRules = hadRules
 
+AppSettings.shared.skin = .amber
+snap(SettingsRootView(), width: 700, height: 500, path: "preview_amber.png")
 AppSettings.shared.skin = .honey
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_honey_window.png", light: true)
 AppSettings.shared.skin = .ocean

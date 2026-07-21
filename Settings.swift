@@ -309,6 +309,7 @@ enum AppSkin: String, CaseIterable, Identifiable {
     case cloud, seafoam, blush, butter, lilac, peach, sage, sky, cream, pistachio,
          pearl, chambray, cotton, fog, matcha, orchid
     // v2.7 wave 2 — the road to 100
+    case amber
     case cobalt, scarlet, mustard, velvet, arctic, terracotta, eggplant, seaweed,
          noir, petrol, sienna, galaxy, hunter, merlot, gunmetal, blackberry, tangerine
     case vanilla, rosewater, glacier, meadow, sandstone, periwinkle, shell,
@@ -409,6 +410,7 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .matcha: return .light(0.94, 0.955, 0.90, ink: Color(red: 0.45, green: 0.55, blue: 0.25))
         case .orchid: return .light(0.98, 0.945, 0.975, ink: Color(red: 0.75, green: 0.40, blue: 0.70))
         // Wave 2 — darks
+        case .amber: return .dark(0.055, 0.035, 0.0, ink: Color(red: 1.0, green: 0.72, blue: 0.20), font: "Menlo", radius: 6, texture: .scanlines)
         case .cobalt: return .dark(0.02, 0.06, 0.14, ink: Color(red: 0.35, green: 0.55, blue: 0.98))
         case .scarlet: return .dark(0.11, 0.03, 0.02, ink: Color(red: 1.0, green: 0.40, blue: 0.25))
         case .mustard: return .dark(0.09, 0.08, 0.03, ink: Color(red: 0.90, green: 0.75, blue: 0.25))
@@ -497,6 +499,7 @@ enum AppSkin: String, CaseIterable, Identifiable {
         case .linen: return "newspaper"
         case .honey: return "hexagon"
         case .custom: return "paintpalette"
+        case .amber: return "sun.horizon"
         default: return "circle.lefthalf.filled"
         }
     }
