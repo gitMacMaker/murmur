@@ -103,7 +103,7 @@ enum TextCleaner {
         s = s.replacingOccurrences(of: "{year}", with: yf.string(from: Date()))
         if s.contains("{greeting}") {
             s = s.replacingOccurrences(of: "{greeting}",
-                                       with: greeting(style: AppSettings.shared.greetingStyle))
+                                       with: greeting())
         }
         if s.contains("{app}") {
             s = s.replacingOccurrences(of: "{app}",

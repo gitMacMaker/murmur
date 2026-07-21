@@ -212,6 +212,22 @@ assert(dec6.extra5 != nil, "backup missing extra5")
 assert(dec6.extra5?.translateTo == AppSettings.shared.translateTo, "extra5 roundtrip")
 print("v2.8 workflow OK")
 
+// Comprehensive backup integrity: mutate one field per Extra block, export,
+// decode, confirm each survived (guards against dropped fields on refactors).
+do {
+    let a = AppSettings.shared
+    a.barWidth = 4.5; a.polishTimeout = 47; a.undoDepth = 7
+    a.translateTo = "Klingon"; a.dailyGoal = 1234
+    let data = try! a.exportBackup()
+    let d = try! JSONDecoder().decode(AppSettings.Backup.self, from: data)
+    assert(d.extra2?.barWidth == 4.5, "extra2 lost")
+    assert(d.extra3?.polishTimeout == 47, "extra3 lost")
+    assert(d.extra4?.undoDepth == 7, "extra4 lost")
+    assert(d.extra5?.translateTo == "Klingon", "extra5 lost")
+    assert(d.dailyGoal == 1234, "base lost")
+    print("backup integrity OK — all 5 extra blocks round-trip")
+}
+
 // Textures: enum count, spec assignments, custom texture in share/backup.
 assert(SkinTexture.allCases.count == 10, "texture count")
 assert(AppSkin.honey.spec?.texture == .hexagons, "honey hexagons")

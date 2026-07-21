@@ -1173,12 +1173,10 @@ final class AppSettings: ObservableObject {
     @Published var timestampPrefix: Bool { didSet { d.set(timestampPrefix, forKey: "tsPrefix") } }
     @Published var capitalizeAfterColon: Bool { didSet { d.set(capitalizeAfterColon, forKey: "capColon") } }
     @Published var trimSurroundingQuotes: Bool { didSet { d.set(trimSurroundingQuotes, forKey: "trimQuotes") } }
-    @Published var greetingStyle: Int { didSet { d.set(greetingStyle, forKey: "greetStyle") } }
     // v2.7 — Dictionary
     @Published var replacementUsage: [String: Int] { didSet { d.set(replacementUsage, forKey: "replUsage") } }
     @Published var trackReplacementUsage: Bool { didSet { d.set(trackReplacementUsage, forKey: "trackRepl") } }
     @Published var showSnippetIndex: Bool { didSet { d.set(showSnippetIndex, forKey: "snipIndex") } }
-    @Published var commandWord: String { didSet { d.set(commandWord, forKey: "cmdWord") } }
     // v2.7 — Appearance
     @Published var pillMinWidth: Double { didSet { d.set(pillMinWidth, forKey: "pillMinW") } }
     @Published var pillOffsetY: Double { didSet { d.set(pillOffsetY, forKey: "pillOffY") } }
@@ -1197,14 +1195,10 @@ final class AppSettings: ObservableObject {
     @Published var animatedGradientBg: Bool { didSet { d.set(animatedGradientBg, forKey: "animBg") } }
     @Published var skinAutoRotate: Bool { didSet { d.set(skinAutoRotate, forKey: "skinRotate") } }
     // v2.7 — Stats
-    @Published var statsGoalRing: Bool { didSet { d.set(statsGoalRing, forKey: "goalRing") } }
-    @Published var statsWeekStart: Int { didSet { d.set(statsWeekStart, forKey: "weekStart") } }
-    @Published var lifetimeSince: Double { didSet { d.set(lifetimeSince, forKey: "lifeSince") } }
     @Published var wpmGoal: Int { didSet { d.set(wpmGoal, forKey: "wpmGoal") } }
     // v2.7 — History
     @Published var historyFontSize: Double { didSet { d.set(historyFontSize, forKey: "histFont") } }
     @Published var historyShowSeconds: Bool { didSet { d.set(historyShowSeconds, forKey: "histSecs") } }
-    @Published var historyMarkFavorites: [String] { didSet { d.set(historyMarkFavorites, forKey: "histFavs") } }
     @Published var autoExportDaily: Bool { didSet { d.set(autoExportDaily, forKey: "autoExport") } }
     @Published var historyGroupByApp: Bool { didSet { d.set(historyGroupByApp, forKey: "histGroupApp") } }
 
@@ -1382,15 +1376,13 @@ final class AppSettings: ObservableObject {
                 showMenuBarChars, ensureSentenceSpacing, timestampPrefix, capitalizeAfterColon,
                 trimSurroundingQuotes, trackReplacementUsage, showSnippetIndex, waveMirror,
                 dimWhenIdle, accentGradient, pillBlur, wordCountBadge, monospaceTranscript,
-                sidebarAccentBar, animatedGradientBg, skinAutoRotate, statsGoalRing,
-                historyShowSeconds, autoExportDaily, historyGroupByApp: Bool?
-            var pillMinWidth, pillOffsetY, pillAppearScale, accentHue2, lifetimeSince,
+                sidebarAccentBar, animatedGradientBg, skinAutoRotate, historyShowSeconds, autoExportDaily, historyGroupByApp: Bool?
+            var pillMinWidth, pillOffsetY, pillAppearScale, accentHue2,
                 historyFontSize: Double?
-            var maxWordsPerInsert, maxRecordWords, undoDepth, greetingStyle, statsWeekStart,
-                wpmGoal: Int?
-            var signatureText, prefixText, commandWord, processingLabel, doneLabel,
+            var maxWordsPerInsert, maxRecordWords, undoDepth, wpmGoal: Int?
+            var signatureText, prefixText, processingLabel, doneLabel,
                 listeningLabel: String?
-            var properNouns, historyMarkFavorites: [String]?
+            var properNouns: [String]?
             var commandModeEnabled, autoLearnVocab: Bool?
             var commandHotkey: HotkeyKey?
             var customSkinTexture: String?
@@ -1523,18 +1515,17 @@ final class AppSettings: ObservableObject {
                 pillBlur: pillBlur, wordCountBadge: wordCountBadge,
                 monospaceTranscript: monospaceTranscript, sidebarAccentBar: sidebarAccentBar,
                 animatedGradientBg: animatedGradientBg, skinAutoRotate: skinAutoRotate,
-                statsGoalRing: statsGoalRing, historyShowSeconds: historyShowSeconds,
+                historyShowSeconds: historyShowSeconds,
                 autoExportDaily: autoExportDaily, historyGroupByApp: historyGroupByApp,
                 pillMinWidth: pillMinWidth, pillOffsetY: pillOffsetY,
                 pillAppearScale: pillAppearScale, accentHue2: accentHue2,
-                lifetimeSince: lifetimeSince, historyFontSize: historyFontSize,
+                historyFontSize: historyFontSize,
                 maxWordsPerInsert: maxWordsPerInsert, maxRecordWords: maxRecordWords,
-                undoDepth: undoDepth, greetingStyle: greetingStyle,
-                statsWeekStart: statsWeekStart, wpmGoal: wpmGoal,
-                signatureText: signatureText, prefixText: prefixText, commandWord: commandWord,
+                undoDepth: undoDepth,
+                wpmGoal: wpmGoal,
+                signatureText: signatureText, prefixText: prefixText,
                 processingLabel: processingLabel, doneLabel: doneLabel,
                 listeningLabel: listeningLabel, properNouns: properNouns,
-                historyMarkFavorites: historyMarkFavorites,
                 commandModeEnabled: commandModeEnabled, autoLearnVocab: autoLearnVocab,
                 commandHotkey: commandHotkey, customSkinTexture: customSkinTexture.rawValue),
             extra5: Backup.Extra5(
@@ -1759,7 +1750,6 @@ final class AppSettings: ObservableObject {
             if let v = e.sidebarAccentBar { sidebarAccentBar = v }
             if let v = e.animatedGradientBg { animatedGradientBg = v }
             if let v = e.skinAutoRotate { skinAutoRotate = v }
-            if let v = e.statsGoalRing { statsGoalRing = v }
             if let v = e.historyShowSeconds { historyShowSeconds = v }
             if let v = e.autoExportDaily { autoExportDaily = v }
             if let v = e.historyGroupByApp { historyGroupByApp = v }
@@ -1767,22 +1757,17 @@ final class AppSettings: ObservableObject {
             if let v = e.pillOffsetY { pillOffsetY = v }
             if let v = e.pillAppearScale { pillAppearScale = v }
             if let v = e.accentHue2 { accentHue2 = v }
-            if let v = e.lifetimeSince { lifetimeSince = v }
             if let v = e.historyFontSize { historyFontSize = v }
             if let v = e.maxWordsPerInsert { maxWordsPerInsert = v }
             if let v = e.maxRecordWords { maxRecordWords = v }
             if let v = e.undoDepth { undoDepth = v }
-            if let v = e.greetingStyle { greetingStyle = v }
-            if let v = e.statsWeekStart { statsWeekStart = v }
             if let v = e.wpmGoal { wpmGoal = v }
             if let v = e.signatureText { signatureText = v }
             if let v = e.prefixText { prefixText = v }
-            if let v = e.commandWord { commandWord = v }
             if let v = e.processingLabel { processingLabel = v }
             if let v = e.doneLabel { doneLabel = v }
             if let v = e.listeningLabel { listeningLabel = v }
             if let v = e.properNouns { properNouns = v }
-            if let v = e.historyMarkFavorites { historyMarkFavorites = v }
             if let v = e.commandModeEnabled { commandModeEnabled = v }
             if let v = e.autoLearnVocab { autoLearnVocab = v }
             if let v = e.commandHotkey { commandHotkey = v }
@@ -2202,11 +2187,9 @@ final class AppSettings: ObservableObject {
         timestampPrefix = d.bool(forKey: "tsPrefix")
         capitalizeAfterColon = d.bool(forKey: "capColon")
         trimSurroundingQuotes = d.bool(forKey: "trimQuotes")
-        greetingStyle = d.integer(forKey: "greetStyle")
         replacementUsage = d.dictionary(forKey: "replUsage") as? [String: Int] ?? [:]
         trackReplacementUsage = d.object(forKey: "trackRepl") as? Bool ?? true
         showSnippetIndex = d.bool(forKey: "snipIndex")
-        commandWord = d.string(forKey: "cmdWord") ?? ""
         pillMinWidth = d.object(forKey: "pillMinW") as? Double ?? 130
         pillOffsetY = d.double(forKey: "pillOffY")
         waveMirror = d.bool(forKey: "waveMirror")
@@ -2223,13 +2206,9 @@ final class AppSettings: ObservableObject {
         sidebarAccentBar = d.object(forKey: "sideAccentBar") as? Bool ?? true
         animatedGradientBg = d.bool(forKey: "animBg")
         skinAutoRotate = d.bool(forKey: "skinRotate")
-        statsGoalRing = d.object(forKey: "goalRing") as? Bool ?? true
-        statsWeekStart = d.integer(forKey: "weekStart")
-        lifetimeSince = d.double(forKey: "lifeSince")
         wpmGoal = d.integer(forKey: "wpmGoal")
         historyFontSize = d.object(forKey: "histFont") as? Double ?? 12.5
         historyShowSeconds = d.object(forKey: "histSecs") as? Bool ?? true
-        historyMarkFavorites = d.stringArray(forKey: "histFavs") ?? []
         autoExportDaily = d.bool(forKey: "autoExport")
         historyGroupByApp = d.bool(forKey: "histGroupApp")
         sendItCommand = d.bool(forKey: "sendIt")
