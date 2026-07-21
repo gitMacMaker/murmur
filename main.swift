@@ -420,7 +420,9 @@ snap(HistoryPreview(), width: 524, height: 500, path: "preview_history.png")
 snap(DictionaryPreview(), width: 524, height: 500, path: "preview_dictionary.png")
 snap(SettingsRootView(), width: 700, height: 500, path: "preview_settings.png")
 snap(AppearancePreview(), width: 524, height: 500, path: "preview_style.png")
-snap(OnboardingView(onDone: {}), width: 440, height: 700, path: "preview_onboarding.png")
+snap(OnboardingView(startStep: 0, onDone: {}), width: 440, height: 700, path: "preview_onb0.png")
+snap(OnboardingView(startStep: 3, onDone: {}), width: 440, height: 700, path: "preview_onb3.png")
+snap(OnboardingView(startStep: 4, onDone: {}), width: 440, height: 700, path: "preview_onb4.png")
 
 // Cheat Sheet render
 snap(CheatSheetView(), width: 420, height: 560, path: "preview_cheatsheet.png")
